@@ -1,6 +1,7 @@
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Modal } from 'react-native';
+import { useState } from 'react';
 import { router } from 'expo-router';
-import { Voucher } from '@/types';
+import { Voucher, CATEGORY_LABELS } from '@/types';
 import { formatCurrency } from '@/lib/utils/currency';
 import { expiryLabel, expiryUrgency } from '@/lib/utils/expiration';
 import { getBrandInfo } from '@/lib/constants/brands';
@@ -8,9 +9,11 @@ import { colors, radius, spacing, fontSizes } from '@/lib/constants/theme';
 
 interface Props {
   voucher: Voucher;
+  onDelete?: () => void;
 }
 
-export default function VoucherCard({ voucher }: Props) {
+export default function VoucherCard({ voucher, onDelete }: Props) {
+  const [confirmVisible, setConfirmVisible] = useState(false);
   const brand = getBrandInfo(voucher.brand);
   const urgency = expiryUrgency(voucher.expires_at);
   const expiryText = expiryLabel(voucher.expires_at);
@@ -23,23 +26,44 @@ export default function VoucherCard({ voucher }: Props) {
     urgency === 'warning' ? colors.warning :
     colors.success;
 
+  const categoryLabel = voucher.category ? CATEGORY_LABELS[voucher.category] : null;
+
   return (
-    <TouchableOpacity
-      style={[styles.card, { borderLeftColor: brand.color }]}
-      onPress={() => router.push(`/voucher/${voucher.id}`)}
-      activeOpacity={0.85}
-    >
-      <View style={styles.cardHeader}>
-        <View style={[styles.brandBadge, { backgroundColor: brand.color + '20' }]}>
-          <Text style={styles.brandEmoji}>{brand.emoji}</Text>
-          <Text style={[styles.brandName, { color: brand.color }]}>{voucher.brand}</Text>
-        </View>
-        {voucher.is_listed && (
-          <View style={styles.listedBadge}>
-            <Text style={styles.listedText}>Listed</Text>
+    <>
+      <TouchableOpacity
+        style={[styles.card, { borderLeftColor: brand.color }]}
+        onPress={() => router.push(`/voucher/${voucher.id}`)}
+        activeOpacity={0.85}
+      >
+        <View style={styles.cardHeader}>
+          <View style={styles.brandRow}>
+            <View style={[styles.brandBadge, { backgroundColor: brand.color + '20' }]}>
+              <Text style={styles.brandEmoji}>{brand.emoji}</Text>
+              <Text style={[styles.brandName, { color: brand.color }]}>{voucher.brand}</Text>
+            </View>
+            {categoryLabel && (
+              <View style={styles.categoryBadge}>
+                <Text style={styles.categoryText}>{categoryLabel}</Text>
+              </View>
+            )}
           </View>
-        )}
-      </View>
+          <View style={styles.cardHeaderRight}>
+            {voucher.is_listed && (
+              <View style={styles.listedBadge}>
+                <Text style={styles.listedText}>Listed</Text>
+              </View>
+            )}
+            {onDelete && (
+              <TouchableOpacity
+                style={styles.deleteBtn}
+                onPress={() => setConfirmVisible(true)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Text style={styles.deleteBtnText}>🗑</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
 
       <View style={styles.values}>
         <View>
@@ -62,17 +86,36 @@ export default function VoucherCard({ voucher }: Props) {
         </View>
       )}
 
-      <View style={styles.cardFooter}>
-        {voucher.voucher_code ? (
-          <Text style={styles.code} numberOfLines={1}>
-            Code: {voucher.voucher_code}
-          </Text>
-        ) : (
-          <Text style={styles.code}>Tap to show barcode</Text>
-        )}
-        <Text style={[styles.expiry, { color: urgencyColor }]}>{expiryText}</Text>
-      </View>
-    </TouchableOpacity>
+        <View style={styles.cardFooter}>
+          {voucher.voucher_code ? (
+            <Text style={styles.code} numberOfLines={1}>Code: {voucher.voucher_code}</Text>
+          ) : (
+            <Text style={styles.code}>Tap to view details</Text>
+          )}
+          <Text style={[styles.expiry, { color: urgencyColor }]}>{expiryText}</Text>
+        </View>
+      </TouchableOpacity>
+
+      <Modal visible={confirmVisible} transparent animationType="fade">
+        <View style={styles.overlay}>
+          <View style={styles.confirmBox}>
+            <Text style={styles.confirmTitle}>Delete Voucher?</Text>
+            <Text style={styles.confirmSub}>Remove "{voucher.brand}" from your wallet permanently.</Text>
+            <View style={styles.confirmBtns}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => setConfirmVisible(false)}>
+                <Text style={styles.cancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.confirmDeleteBtn}
+                onPress={() => { setConfirmVisible(false); onDelete?.(); }}
+              >
+                <Text style={styles.confirmDeleteText}>Delete</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </>
   );
 }
 
@@ -96,6 +139,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: spacing.sm,
   },
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    flex: 1,
+    flexWrap: 'wrap',
+  },
   brandBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -104,45 +154,42 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     gap: 4,
   },
-  brandEmoji: {
-    fontSize: 16,
+  brandEmoji: { fontSize: 16 },
+  brandName: { fontSize: fontSizes.sm, fontWeight: '700' },
+  categoryBadge: {
+    backgroundColor: colors.gray100,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: radius.pill,
   },
-  brandName: {
-    fontSize: fontSizes.sm,
-    fontWeight: '700',
-  },
+  categoryText: { fontSize: fontSizes.xs, color: colors.textMuted, fontWeight: '500' },
+  cardHeaderRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   listedBadge: {
     backgroundColor: colors.accent + '20',
     paddingHorizontal: spacing.sm,
     paddingVertical: 2,
     borderRadius: radius.pill,
   },
-  listedText: {
-    color: colors.accent,
-    fontSize: fontSizes.xs,
-    fontWeight: '700',
-  },
+  listedText: { color: colors.accent, fontSize: fontSizes.xs, fontWeight: '700' },
+  deleteBtn: { padding: 4 },
+  deleteBtnText: { fontSize: 16 },
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center', padding: spacing.lg },
+  confirmBox: { backgroundColor: colors.cardBg, borderRadius: radius.lg, padding: spacing.lg, width: '100%', maxWidth: 320 },
+  confirmTitle: { fontSize: fontSizes.lg, fontWeight: '800', color: colors.text, marginBottom: spacing.xs },
+  confirmSub: { fontSize: fontSizes.sm, color: colors.textMuted, marginBottom: spacing.lg },
+  confirmBtns: { flexDirection: 'row', gap: spacing.sm },
+  cancelBtn: { flex: 1, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, alignItems: 'center' },
+  cancelBtnText: { color: colors.textMuted, fontWeight: '600' },
+  confirmDeleteBtn: { flex: 1, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.error, alignItems: 'center' },
+  confirmDeleteText: { color: colors.white, fontWeight: '700' },
   values: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: spacing.sm,
   },
-  valueLabel: {
-    fontSize: fontSizes.xs,
-    color: colors.textMuted,
-    fontWeight: '500',
-  },
-  valueAmount: {
-    fontSize: fontSizes.xxl,
-    fontWeight: '800',
-    color: colors.text,
-  },
-  valueDivider: {
-    width: 1,
-    height: 36,
-    backgroundColor: colors.border,
-    marginHorizontal: spacing.md,
-  },
+  valueLabel: { fontSize: fontSizes.xs, color: colors.textMuted, fontWeight: '500' },
+  valueAmount: { fontSize: fontSizes.xxl, fontWeight: '800', color: colors.text },
+  valueDivider: { width: 1, height: 36, backgroundColor: colors.border, marginHorizontal: spacing.md },
   originalValue: {},
   originalAmount: {
     fontSize: fontSizes.lg,
@@ -163,28 +210,9 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     overflow: 'hidden',
   },
-  progressFill: {
-    height: '100%',
-    borderRadius: 2,
-  },
-  progressLabel: {
-    fontSize: fontSizes.xs,
-    color: colors.textMuted,
-    width: 52,
-    textAlign: 'right',
-  },
-  cardFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  code: {
-    fontSize: fontSizes.xs,
-    color: colors.textMuted,
-    flex: 1,
-  },
-  expiry: {
-    fontSize: fontSizes.xs,
-    fontWeight: '600',
-  },
+  progressFill: { height: '100%', borderRadius: 2 },
+  progressLabel: { fontSize: fontSizes.xs, color: colors.textMuted, width: 52, textAlign: 'right' },
+  cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  code: { fontSize: fontSizes.xs, color: colors.textMuted, flex: 1 },
+  expiry: { fontSize: fontSizes.xs, fontWeight: '600' },
 });

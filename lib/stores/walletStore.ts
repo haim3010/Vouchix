@@ -12,7 +12,18 @@ interface WalletState {
   deleteVoucher: (id: string) => Promise<void>;
 }
 
-export const useWalletStore = create<WalletState>((set, get) => ({
+/** Extract a human-readable message from any thrown value (Error, PostgrestError, plain string, etc.) */
+function extractMessage(e: unknown, fallback: string): string {
+  if (typeof e === 'string') return e;
+  if (e && typeof e === 'object') {
+    const obj = e as Record<string, unknown>;
+    if (typeof obj.message === 'string') return obj.message;
+    if (typeof obj.details === 'string') return obj.details;
+  }
+  return fallback;
+}
+
+export const useWalletStore = create<WalletState>((set) => ({
   vouchers: [],
   loading: false,
   error: null,
@@ -29,7 +40,7 @@ export const useWalletStore = create<WalletState>((set, get) => ({
       if (error) throw error;
       set({ vouchers: (data ?? []) as Voucher[] });
     } catch (e) {
-      set({ error: e instanceof Error ? e.message : 'Failed to fetch vouchers' });
+      set({ error: extractMessage(e, 'Failed to fetch vouchers') });
     } finally {
       set({ loading: false });
     }
@@ -45,8 +56,9 @@ export const useWalletStore = create<WalletState>((set, get) => ({
       if (error) throw error;
       set((state) => ({ vouchers: [data as Voucher, ...state.vouchers] }));
     } catch (e) {
-      set({ error: e instanceof Error ? e.message : 'Failed to add voucher' });
-      throw e;
+      const msg = extractMessage(e, 'Failed to add voucher');
+      set({ error: msg });
+      throw new Error(msg); // always throw a proper Error so callers can use e.message
     }
   },
 
@@ -63,19 +75,21 @@ export const useWalletStore = create<WalletState>((set, get) => ({
         vouchers: state.vouchers.map((v) => (v.id === id ? (data as Voucher) : v)),
       }));
     } catch (e) {
-      set({ error: e instanceof Error ? e.message : 'Failed to update voucher' });
-      throw e;
+      const msg = extractMessage(e, 'Failed to update voucher');
+      set({ error: msg });
+      throw new Error(msg);
     }
   },
 
   deleteVoucher: async (id: string) => {
-    try {
-      const { error } = await supabase.from('vouchers').delete().eq('id', id);
-      if (error) throw error;
-      set((state) => ({ vouchers: state.vouchers.filter((v) => v.id !== id) }));
-    } catch (e) {
-      set({ error: e instanceof Error ? e.message : 'Failed to delete voucher' });
-      throw e;
+    // Delete related offers first (FK constraint fallback — DB has CASCADE but belt-and-suspenders)
+    await supabase.from('offers').delete().eq('voucher_id', id);
+    const { error } = await supabase.from('vouchers').delete().eq('id', id);
+    if (error) {
+      const msg = extractMessage(error, 'Failed to delete voucher');
+      set({ error: msg });
+      throw new Error(msg);
     }
+    set((state) => ({ vouchers: state.vouchers.filter((v) => v.id !== id) }));
   },
 }));

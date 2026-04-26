@@ -38,17 +38,17 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="marketplace"
-        options={{
-          tabBarIcon: ({ focused }) => <TabIcon emoji="🏪" label="Market" focused={focused} />,
-        }}
-      />
-      <Tabs.Screen
         name="notifications"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon emoji="🔔" label="Offers" focused={focused} badge={pendingCount} />
+            <TabIcon emoji="🕐" label="History" focused={focused} badge={pendingCount} />
           ),
+        }}
+      />
+      <Tabs.Screen
+        name="marketplace"
+        options={{
+          tabBarIcon: ({ focused }) => <TabIcon emoji="🏪" label="Market" focused={focused} />,
         }}
       />
       <Tabs.Screen

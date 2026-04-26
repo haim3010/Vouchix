@@ -2,6 +2,15 @@ import { create } from 'zustand';
 import { supabase } from '@/lib/supabase';
 import { Voucher, Offer } from '@/types';
 
+function extractMsg(e: unknown, fallback: string): string {
+  if (typeof e === 'string') return e;
+  if (e && typeof e === 'object') {
+    const obj = e as Record<string, unknown>;
+    if (typeof obj.message === 'string') return obj.message;
+  }
+  return fallback;
+}
+
 export interface ListingWithSeller extends Voucher {
   seller: {
     id: string;
@@ -139,7 +148,7 @@ export const useMarketplaceStore = create<MarketplaceState>((set, get) => ({
         voucher:vouchers!offers_voucher_id_fkey(brand, original_value, listing_price)
       `)
       .single();
-    if (error) throw error;
+    if (error) throw new Error(extractMsg(error, 'Failed to send offer'));
     set((state) => ({ myOffers: [data as OfferWithBuyer, ...state.myOffers] }));
   },
 
@@ -148,7 +157,7 @@ export const useMarketplaceStore = create<MarketplaceState>((set, get) => ({
       .from('offers')
       .update({ status, updated_at: new Date().toISOString() })
       .eq('id', offerId);
-    if (error) throw error;
+    if (error) throw new Error(extractMsg(error, 'Failed to update offer'));
     set((state) => ({
       incomingOffers: state.incomingOffers.filter((o) => o.id !== offerId),
       myOffers: state.myOffers.map((o) =>

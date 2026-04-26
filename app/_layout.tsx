@@ -17,12 +17,13 @@ export default function RootLayout() {
       }
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
-      if (session?.user) {
-        fetchProfile(session.user.id);
+      if (session?.user) fetchProfile(session.user.id);
+      // Only navigate on actual sign-in/sign-out — NOT on TOKEN_REFRESHED or USER_UPDATED
+      if (event === 'SIGNED_IN') {
         router.replace('/(tabs)/wallet');
-      } else {
+      } else if (event === 'SIGNED_OUT') {
         router.replace('/(auth)/login');
       }
     });
