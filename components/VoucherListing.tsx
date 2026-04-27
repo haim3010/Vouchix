@@ -11,10 +11,11 @@ interface Props {
   listing: ListingWithSeller;
   onPress: () => void;
   onOffer: () => void;
+  onSellerPress?: () => void;
   isOwn?: boolean;
 }
 
-export default function VoucherListing({ listing, onPress, onOffer, isOwn = false }: Props) {
+export default function VoucherListing({ listing, onPress, onOffer, onSellerPress, isOwn = false }: Props) {
   const brand = getBrandInfo(listing.brand);
   const isTrade = listing.listing_price === null;
   const discount = !isTrade && listing.listing_price
@@ -96,17 +97,25 @@ export default function VoucherListing({ listing, onPress, onOffer, isOwn = fals
 
       {/* Seller + expiry row */}
       <View style={styles.sellerRow}>
-        <View style={styles.sellerAvatar}>
+        <TouchableOpacity
+          style={styles.sellerAvatar}
+          onPress={(e) => { e.stopPropagation(); onSellerPress?.(); }}
+          disabled={!onSellerPress}
+        >
           <Text style={styles.sellerInitial}>
             {listing.seller?.display_name?.[0]?.toUpperCase() ?? '?'}
           </Text>
-        </View>
-        <View style={styles.sellerInfo}>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.sellerInfo}
+          onPress={(e) => { e.stopPropagation(); onSellerPress?.(); }}
+          disabled={!onSellerPress}
+        >
           <Text style={styles.sellerName}>{listing.seller?.display_name ?? 'Seller'}</Text>
           <Text style={styles.sellerRating}>
             ⭐ {(listing.seller?.rating ?? 5).toFixed(1)} · {listing.seller?.total_trades ?? 0} trades
           </Text>
-        </View>
+        </TouchableOpacity>
         {daysLeft !== null && (
           <Text style={[
             styles.expiry,

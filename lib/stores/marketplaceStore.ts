@@ -47,6 +47,8 @@ interface MarketplaceState {
   fetchIncomingOffers: (userId: string) => Promise<void>;
   makeOffer: (voucherId: string, buyerId: string, amount: number, message?: string) => Promise<void>;
   respondToOffer: (offerId: string, status: 'accepted' | 'rejected') => Promise<void>;
+  completeOffer: (offerId: string) => Promise<void>;
+  cancelOffer: (offerId: string) => Promise<void>;
   setBrandFilter: (brand: string | null) => void;
   setSortBy: (sort: MarketplaceState['sortBy']) => void;
 }
@@ -163,6 +165,32 @@ export const useMarketplaceStore = create<MarketplaceState>((set, get) => ({
       myOffers: state.myOffers.map((o) =>
         o.id === offerId ? { ...o, status } : o
       ),
+    }));
+  },
+
+  completeOffer: async (offerId: string) => {
+    const { error } = await supabase
+      .from('offers')
+      .update({ status: 'completed', updated_at: new Date().toISOString() })
+      .eq('id', offerId);
+    if (error) throw new Error(extractMsg(error, 'Failed to mark offer as completed'));
+    const patch = (o: OfferWithBuyer) => o.id === offerId ? { ...o, status: 'completed' } : o;
+    set((state) => ({
+      myOffers: state.myOffers.map(patch),
+      incomingOffers: state.incomingOffers.map(patch),
+    }));
+  },
+
+  cancelOffer: async (offerId: string) => {
+    const { error } = await supabase
+      .from('offers')
+      .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+      .eq('id', offerId);
+    if (error) throw new Error(extractMsg(error, 'Failed to cancel offer'));
+    const patch = (o: OfferWithBuyer) => o.id === offerId ? { ...o, status: 'cancelled' } : o;
+    set((state) => ({
+      myOffers: state.myOffers.map(patch),
+      incomingOffers: state.incomingOffers.map(patch),
     }));
   },
 

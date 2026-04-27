@@ -17,6 +17,7 @@ import { useMarketplaceStore, ListingWithSeller } from '@/lib/stores/marketplace
 import { useAuthStore } from '@/lib/stores/authStore';
 import { useWalletStore } from '@/lib/stores/walletStore';
 import VoucherListing from '@/components/VoucherListing';
+import UserProfileModal from '@/components/UserProfileModal';
 import AppHeader from '@/components/AppHeader';
 import { colors, spacing, radius, fontSizes } from '@/lib/constants/theme';
 import { formatCurrency } from '@/lib/utils/currency';
@@ -75,6 +76,9 @@ export default function MarketplaceScreen() {
   const { user } = useAuthStore();
   const { listings, loading, fetchListings, makeOffer } = useMarketplaceStore();
   const { vouchers, updateVoucher, deleteVoucher, fetchVouchers } = useWalletStore();
+
+  // ── Seller profile modal ──
+  const [profileUserId, setProfileUserId] = useState<string | null>(null);
 
   // ── Mode ──
   const [mode, setMode] = useState<MarketMode>('global');
@@ -531,6 +535,7 @@ export default function MarketplaceScreen() {
                 onOffer={() => {
                   if (!isOwn) { setOfferTarget(item); setOfferAmount(String(item.listing_price ?? '')); }
                 }}
+                onSellerPress={() => setProfileUserId(item.owner_id)}
               />
             );
           }}
@@ -1197,6 +1202,12 @@ export default function MarketplaceScreen() {
           )}
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* ══ SELLER PROFILE MODAL ══ */}
+      <UserProfileModal
+        userId={profileUserId}
+        onClose={() => setProfileUserId(null)}
+      />
     </View>
   );
 }
