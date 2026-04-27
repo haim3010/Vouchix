@@ -100,6 +100,8 @@ export default function MarketplaceScreen() {
   const [offerMessage, setOfferMessage] = useState('');
   const [offerLoading, setOfferLoading] = useState(false);
   const [offerError, setOfferError] = useState('');
+  // For trade listings: the voucher the buyer wants to offer in exchange
+  const [selectedTradeVoucher, setSelectedTradeVoucher] = useState<Voucher | null>(null);
 
   // ── List voucher modal ──
   const [listModalVisible, setListModalVisible] = useState(false);
@@ -223,6 +225,27 @@ export default function MarketplaceScreen() {
   async function submitOffer() {
     if (!user?.id || !offerTarget) return;
     setOfferError('');
+    const isTrade = offerTarget.listing_price === null;
+
+    if (isTrade) {
+      if (!selectedTradeVoucher) {
+        setOfferError('Please select a voucher to offer in trade');
+        return;
+      }
+      const tradeMsg = `🔄 Trade offer: ${selectedTradeVoucher.brand} (${formatCurrency(selectedTradeVoucher.remaining_value)} value)${offerMessage ? '\n' + offerMessage : ''}`;
+      setOfferLoading(true);
+      try {
+        await makeOffer(offerTarget.id, user.id, selectedTradeVoucher.remaining_value, tradeMsg);
+        setOfferTarget(null); setOfferAmount(''); setOfferMessage('');
+        setOfferError(''); setSelectedTradeVoucher(null);
+      } catch {
+        setOfferError('Failed to send trade offer. Try again.');
+      } finally {
+        setOfferLoading(false);
+      }
+      return;
+    }
+
     const amount = parseFloat(offerAmount);
     if (isNaN(amount) || amount <= 0) { setOfferError('Please enter a valid offer amount'); return; }
     setOfferLoading(true);
@@ -717,10 +740,12 @@ export default function MarketplaceScreen() {
         <KeyboardAvoidingView style={styles.modalContainer} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <View style={styles.modalHandle} />
           <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => { setOfferTarget(null); setOfferError(''); }}>
+            <TouchableOpacity onPress={() => { setOfferTarget(null); setOfferError(''); setSelectedTradeVoucher(null); }}>
               <Text style={styles.modalClose}>Cancel</Text>
             </TouchableOpacity>
-            <Text style={styles.modalTitle}>Make an Offer</Text>
+            <Text style={styles.modalTitle}>
+              {offerTarget?.listing_price === null ? 'Propose a Trade' : 'Make an Offer'}
+            </Text>
             <View style={{ width: 56 }} />
           </View>
           {offerTarget && (
@@ -728,32 +753,86 @@ export default function MarketplaceScreen() {
               {offerError.length > 0 && (
                 <View style={styles.inlineError}><Text style={styles.inlineErrorText}>⚠ {offerError}</Text></View>
               )}
+
+              {/* Listing summary */}
               <View style={styles.offerSummary}>
                 <Text style={styles.offerBrand}>{offerTarget.brand}</Text>
-                <Text style={styles.offerOriginal}>Worth {formatCurrency(offerTarget.original_value)}</Text>
-                <Text style={styles.offerListing}>
-                  Listed at {formatCurrency(offerTarget.listing_price ?? offerTarget.original_value)}
-                </Text>
+                <Text style={styles.offerOriginal}>Face value {formatCurrency(offerTarget.original_value)}</Text>
+                {offerTarget.listing_price === null ? (
+                  <View style={[styles.tradeSummaryBadge]}>
+                    <Text style={styles.tradeSummaryText}>🔄 Trade listing — no cash price</Text>
+                  </View>
+                ) : (
+                  <Text style={styles.offerListing}>Listed at {formatCurrency(offerTarget.listing_price)}</Text>
+                )}
               </View>
-              <Text style={styles.inputLabel}>Your Offer (₪)</Text>
-              <TextInput
-                style={styles.offerInput}
-                placeholder={`e.g. ${Math.round((offerTarget.listing_price ?? offerTarget.original_value) * 0.9)}`}
-                placeholderTextColor={colors.textMuted}
-                keyboardType="decimal-pad"
-                value={offerAmount}
-                onChangeText={setOfferAmount}
-                autoFocus
-              />
-              {offerAmount.length > 0 && !isNaN(parseFloat(offerAmount)) && (
-                <Text style={styles.savingsHint}>
-                  You save {formatCurrency(offerTarget.original_value - parseFloat(offerAmount))} vs face value
-                </Text>
+
+              {/* ── TRADE: voucher picker ── */}
+              {offerTarget.listing_price === null ? (
+                <>
+                  <Text style={styles.inputLabel}>Select a voucher to offer in exchange:</Text>
+                  {vouchers.filter((v) => v.status === 'active').length === 0 ? (
+                    <View style={styles.tradeEmpty}>
+                      <Text style={styles.tradeEmptyText}>
+                        You have no active vouchers to trade. Add vouchers to your wallet first.
+                      </Text>
+                    </View>
+                  ) : (
+                    vouchers
+                      .filter((v) => v.status === 'active')
+                      .map((v) => (
+                        <TouchableOpacity
+                          key={v.id}
+                          style={[
+                            styles.pickCard,
+                            selectedTradeVoucher?.id === v.id && styles.pickCardSelected,
+                          ]}
+                          onPress={() => setSelectedTradeVoucher(v)}
+                        >
+                          <View style={styles.pickCardInfo}>
+                            <Text style={styles.pickCardBrand}>{v.brand}</Text>
+                            <Text style={styles.pickCardVal}>{formatCurrency(v.remaining_value)} remaining</Text>
+                            {v.voucher_type === 'digital' && (
+                              <Text style={styles.pickCardType}>⚡ Digital — instant transfer</Text>
+                            )}
+                            {v.voucher_type === 'physical' && (
+                              <Text style={[styles.pickCardType, { color: colors.warning }]}>🤝 Physical — coordination needed</Text>
+                            )}
+                          </View>
+                          {selectedTradeVoucher?.id === v.id && <Text style={styles.pickCheck}>✓</Text>}
+                        </TouchableOpacity>
+                      ))
+                  )}
+                </>
+              ) : (
+                /* ── SALE: price input ── */
+                <>
+                  <Text style={styles.inputLabel}>Your Offer (₪)</Text>
+                  <TextInput
+                    style={styles.offerInput}
+                    placeholder={`e.g. ${Math.round((offerTarget.listing_price ?? offerTarget.original_value) * 0.9)}`}
+                    placeholderTextColor={colors.textMuted}
+                    keyboardType="decimal-pad"
+                    value={offerAmount}
+                    onChangeText={setOfferAmount}
+                    autoFocus
+                  />
+                  {offerAmount.length > 0 && !isNaN(parseFloat(offerAmount)) && (
+                    <Text style={styles.savingsHint}>
+                      You save {formatCurrency(offerTarget.original_value - parseFloat(offerAmount))} vs face value
+                    </Text>
+                  )}
+                </>
               )}
-              <Text style={styles.inputLabel}>Message to seller (optional)</Text>
+
+              <Text style={styles.inputLabel}>Message (optional)</Text>
               <TextInput
                 style={[styles.offerInput, styles.messageInput]}
-                placeholder="Hi, I'm interested in this voucher..."
+                placeholder={
+                  offerTarget.listing_price === null
+                    ? 'Tell the seller why your voucher is a good match...'
+                    : 'Hi, I\'m interested in this voucher...'
+                }
                 placeholderTextColor={colors.textMuted}
                 multiline
                 numberOfLines={3}
@@ -767,9 +846,15 @@ export default function MarketplaceScreen() {
               >
                 {offerLoading
                   ? <ActivityIndicator color={colors.white} />
-                  : <Text style={styles.submitText}>Send Offer</Text>}
+                  : <Text style={styles.submitText}>
+                      {offerTarget.listing_price === null ? 'Propose Trade' : 'Send Offer'}
+                    </Text>}
               </TouchableOpacity>
-              <Text style={styles.disclaimer}>Payment only happens after both sides agree.</Text>
+              <Text style={styles.disclaimer}>
+                {offerTarget.listing_price === null
+                  ? 'The seller will review your voucher and respond.'
+                  : 'Payment only happens after both sides agree.'}
+              </Text>
             </ScrollView>
           )}
         </KeyboardAvoidingView>
@@ -1300,8 +1385,8 @@ const styles = StyleSheet.create({
   },
   sortMenu: {
     backgroundColor: colors.cardBg,
-    borderTopLeftRadius: radius.xl,
-    borderTopRightRadius: radius.xl,
+    borderTopLeftRadius: radius.lg,
+    borderTopRightRadius: radius.lg,
     padding: spacing.lg,
     paddingBottom: 36,
     gap: spacing.xs,
@@ -1462,6 +1547,23 @@ const styles = StyleSheet.create({
   submitButton: { backgroundColor: colors.accent, borderRadius: radius.md, padding: spacing.md, alignItems: 'center' },
   submitText: { color: colors.white, fontSize: fontSizes.md, fontWeight: '700' },
   disclaimer: { fontSize: fontSizes.xs, color: colors.textMuted, textAlign: 'center', lineHeight: 18 },
+  tradeSummaryBadge: {
+    backgroundColor: '#FFF3CD',
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    marginTop: spacing.xs,
+    alignSelf: 'flex-start',
+  },
+  tradeSummaryText: { fontSize: fontSizes.xs, color: '#B8860B', fontWeight: '600' },
+  tradeEmpty: {
+    backgroundColor: colors.warning + '15',
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  tradeEmptyText: { fontSize: fontSizes.sm, color: colors.warning, lineHeight: 20 },
+  pickCardType: { fontSize: fontSizes.xs, color: colors.secondary, marginTop: 2 },
   inlineError: {
     backgroundColor: colors.error + '15',
     borderWidth: 1,
