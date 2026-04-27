@@ -97,13 +97,12 @@ export default function MarketplaceScreen() {
 
   useEffect(() => { fetchListings(); }, [brandFilter, sortBy]);
 
-  const othersListings = listings.filter((l) => l.owner_id !== user?.id);
   const myListings = vouchers.filter((v) => v.is_listed && v.status === 'active');
   const unlistedVouchers = vouchers.filter((v) => !v.is_listed && v.status === 'active');
 
   const globalFiltered = searchText
-    ? othersListings.filter((l) => l.brand.toLowerCase().includes(searchText.toLowerCase()))
-    : othersListings;
+    ? listings.filter((l) => l.brand.toLowerCase().includes(searchText.toLowerCase()))
+    : listings;
 
   // Checks for the selected voucher at listing time
   const expiryCheck = selectedVoucher ? getExpiryCheck(selectedVoucher) : null;
@@ -286,18 +285,40 @@ export default function MarketplaceScreen() {
       <View style={styles.header}>
         <Text style={styles.title}>Marketplace</Text>
         <Text style={styles.subtitle}>
-          {mode === 'global' ? `${globalFiltered.length} vouchers available` : `${myListings.length} of your listings`}
+          {mode === 'global' ? `${globalFiltered.length} voucher${globalFiltered.length !== 1 ? 's' : ''} available` : `${myListings.length} of your listings`}
         </Text>
       </View>
 
       {/* Mode toggle */}
-      <View style={styles.modeToggle}>
-        <TouchableOpacity style={[styles.modeBtn, mode === 'global' && styles.modeBtnActive]} onPress={() => setMode('global')}>
-          <Text style={[styles.modeBtnText, mode === 'global' && styles.modeBtnTextActive]}>🌍 Global Market</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.modeBtn, mode === 'my' && styles.modeBtnActive]} onPress={() => setMode('my')}>
-          <Text style={[styles.modeBtnText, mode === 'my' && styles.modeBtnTextActive]}>🏷️ My Market</Text>
-        </TouchableOpacity>
+      <View style={styles.modeToggleWrap}>
+        <View style={styles.modeToggle}>
+          <TouchableOpacity
+            style={[styles.modeBtn, mode === 'global' && styles.modeBtnActive]}
+            onPress={() => setMode('global')}
+          >
+            <Text style={[styles.modeBtnText, mode === 'global' && styles.modeBtnTextActive]}>
+              🌍 Global Market
+            </Text>
+            <View style={[styles.modeBadge, mode === 'global' && styles.modeBadgeActive]}>
+              <Text style={[styles.modeBadgeText, mode === 'global' && styles.modeBadgeTextActive]}>
+                {listings.length}
+              </Text>
+            </View>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.modeBtn, mode === 'my' && styles.modeBtnActive]}
+            onPress={() => setMode('my')}
+          >
+            <Text style={[styles.modeBtnText, mode === 'my' && styles.modeBtnTextActive]}>
+              🏷️ My Market
+            </Text>
+            <View style={[styles.modeBadge, mode === 'my' && styles.modeBadgeActive]}>
+              <Text style={[styles.modeBadgeText, mode === 'my' && styles.modeBadgeTextActive]}>
+                {myListings.length}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Global Market */}
@@ -305,13 +326,17 @@ export default function MarketplaceScreen() {
         <FlatList<ListingWithSeller>
           data={globalFiltered}
           keyExtractor={(l) => l.id}
-          renderItem={({ item }) => (
-            <VoucherListing
-              listing={item}
-              onPress={() => { setOfferTarget(item); setOfferAmount(String(item.listing_price ?? '')); }}
-              onOffer={() => { setOfferTarget(item); setOfferAmount(String(item.listing_price ?? '')); }}
-            />
-          )}
+          renderItem={({ item }) => {
+            const isOwn = item.owner_id === user?.id;
+            return (
+              <VoucherListing
+                listing={item}
+                isOwn={isOwn}
+                onPress={() => { if (!isOwn) { setOfferTarget(item); setOfferAmount(String(item.listing_price ?? '')); } }}
+                onOffer={() => { if (!isOwn) { setOfferTarget(item); setOfferAmount(String(item.listing_price ?? '')); } }}
+              />
+            );
+          }}
           ListHeaderComponent={renderGlobalHeader}
           ListEmptyComponent={loading ? null : (
             <View style={styles.empty}>
@@ -357,7 +382,7 @@ export default function MarketplaceScreen() {
                   </View>
                   <View style={styles.myCardPriceCol}>
                     <Text style={styles.myCardPrice}>{v.listing_price ? formatCurrency(v.listing_price) : 'Trade only'}</Text>
-                    {v.listing_price && v.original_value > v.listing_price && (
+                    {!!v.listing_price && v.original_value > v.listing_price && (
                       <View style={styles.discountBadge}>
                         <Text style={styles.discountText}>-{Math.round((1 - v.listing_price / v.original_value) * 100)}%</Text>
                       </View>
@@ -369,10 +394,7 @@ export default function MarketplaceScreen() {
                     <Text style={styles.editListingBtnText}>✏️ Edit Price</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.delistBtn} onPress={() => setDelistTarget(v)}>
-                    <Text style={styles.delistBtnText}>📤 Delist</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.removeBtn} onPress={() => setDeleteTarget(v)}>
-                    <Text style={styles.removeBtnText}>🗑</Text>
+                    <Text style={styles.delistBtnText}>📤 Remove from Market</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -412,7 +434,7 @@ export default function MarketplaceScreen() {
                 onChangeText={setOfferAmount}
                 autoFocus
               />
-              {offerAmount && !isNaN(parseFloat(offerAmount)) && (
+              {offerAmount.length > 0 && !isNaN(parseFloat(offerAmount)) && (
                 <Text style={styles.savingsHint}>You save {formatCurrency(offerTarget.original_value - parseFloat(offerAmount))} vs face value</Text>
               )}
               <Text style={styles.inputLabel}>Message to seller (optional)</Text>
@@ -577,7 +599,7 @@ export default function MarketplaceScreen() {
                       onChangeText={setListPrice}
                       autoFocus={listingType === 'sell'}
                     />
-                    {listPrice && !isNaN(parseFloat(listPrice)) && parseFloat(listPrice) > 0 && (
+                    {listPrice.length > 0 && !isNaN(parseFloat(listPrice)) && parseFloat(listPrice) > 0 && (
                       <>
                         {parseFloat(listPrice) > balanceNum && (
                           <Text style={styles.priceError}>🚫 Price exceeds actual balance — this would be considered fraud</Text>
@@ -710,7 +732,7 @@ export default function MarketplaceScreen() {
                 onChangeText={setEditPrice}
                 autoFocus
               />
-              {editPrice && !isNaN(parseFloat(editPrice)) && parseFloat(editPrice) < editTarget.original_value && (
+              {editPrice.length > 0 && !isNaN(parseFloat(editPrice)) && parseFloat(editPrice) < editTarget.original_value && (
                 <Text style={styles.savingsHint}>{Math.round((1 - parseFloat(editPrice) / editTarget.original_value) * 100)}% discount for buyers</Text>
               )}
               <View style={styles.negotiableRow}>
@@ -744,11 +766,50 @@ const styles = StyleSheet.create({
   title: { fontSize: 24, fontWeight: '800', color: colors.white },
   subtitle: { fontSize: fontSizes.sm, color: colors.accent, marginTop: 2 },
 
-  modeToggle: { flexDirection: 'row', backgroundColor: colors.cardBg, borderBottomWidth: 1, borderBottomColor: colors.border },
-  modeBtn: { flex: 1, paddingVertical: spacing.md, alignItems: 'center' },
-  modeBtnActive: { borderBottomWidth: 3, borderBottomColor: colors.accent },
-  modeBtnText: { fontSize: fontSizes.sm, fontWeight: '700', color: colors.textMuted },
-  modeBtnTextActive: { color: colors.accent },
+  modeToggleWrap: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.md,
+    paddingTop: spacing.xs,
+  },
+  modeToggle: {
+    flexDirection: 'row',
+    backgroundColor: colors.secondary + '55',
+    borderRadius: radius.lg,
+    padding: 4,
+  },
+  modeBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radius.md,
+    gap: spacing.xs,
+  },
+  modeBtnActive: {
+    backgroundColor: colors.accent,
+    shadowColor: colors.accent,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.35,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  modeBtnText: { fontSize: fontSizes.sm, fontWeight: '700', color: colors.gray400 },
+  modeBtnTextActive: { color: colors.white },
+  modeBadge: {
+    backgroundColor: colors.secondary,
+    borderRadius: radius.pill,
+    minWidth: 22,
+    height: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 6,
+  },
+  modeBadgeActive: { backgroundColor: 'rgba(255,255,255,0.25)' },
+  modeBadgeText: { fontSize: fontSizes.xs, fontWeight: '800', color: colors.gray400 },
+  modeBadgeTextActive: { color: colors.white },
 
   filterRow: { backgroundColor: colors.primary, paddingVertical: spacing.sm },
   sortRow: { backgroundColor: colors.bgLight, paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border },

@@ -9,9 +9,10 @@ interface Props {
   listing: ListingWithSeller;
   onPress: () => void;
   onOffer: () => void;
+  isOwn?: boolean;
 }
 
-export default function VoucherListing({ listing, onPress, onOffer }: Props) {
+export default function VoucherListing({ listing, onPress, onOffer, isOwn = false }: Props) {
   const brand = getBrandInfo(listing.brand);
   const discount = listing.listing_price
     ? discountPercent(listing.original_value, listing.listing_price)
@@ -71,12 +72,18 @@ export default function VoucherListing({ listing, onPress, onOffer }: Props) {
         )}
       </View>
 
-      <TouchableOpacity
-        style={[styles.offerButton, { backgroundColor: brand.color }]}
-        onPress={(e) => { e.stopPropagation(); onOffer(); }}
-      >
-        <Text style={styles.offerButtonText}>Make Offer</Text>
-      </TouchableOpacity>
+      {isOwn ? (
+        <View style={styles.ownBadge}>
+          <Text style={styles.ownBadgeText}>🏷️ Your Listing</Text>
+        </View>
+      ) : (
+        <TouchableOpacity
+          style={[styles.offerButton, { backgroundColor: brand.color }]}
+          onPress={(e) => { e.stopPropagation(); onOffer(); }}
+        >
+          <Text style={styles.offerButtonText}>Make Offer</Text>
+        </TouchableOpacity>
+      )}
     </TouchableOpacity>
   );
 }
@@ -192,6 +199,19 @@ const styles = StyleSheet.create({
   },
   offerButtonText: {
     color: colors.white,
+    fontWeight: '700',
+    fontSize: fontSizes.sm,
+  },
+  ownBadge: {
+    borderRadius: radius.md,
+    padding: spacing.sm,
+    alignItems: 'center',
+    backgroundColor: colors.secondary + '20',
+    borderWidth: 1,
+    borderColor: colors.secondary,
+  },
+  ownBadgeText: {
+    color: colors.secondary,
     fontWeight: '700',
     fontSize: fontSizes.sm,
   },
