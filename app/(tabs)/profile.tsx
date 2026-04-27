@@ -4,7 +4,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
-  Alert,
   ActivityIndicator,
   Modal,
   TextInput,
@@ -26,6 +25,7 @@ const ISRAELI_BANKS = [
   'Mercantile Discount Bank', 'Union Bank of Israel',
 ];
 
+// ─── Sparkline chart ──────────────────────────────────────────────────────────
 function TradeHistoryChart({ vouchers }: { vouchers: { created_at: string; original_value: number }[] }) {
   const width = 300;
   const height = 110;
@@ -39,8 +39,11 @@ function TradeHistoryChart({ vouchers }: { vouchers: { created_at: string; origi
 
   const data = months.map(({ month, year }) =>
     vouchers
-      .filter((v) => { const d = new Date(v.created_at); return d.getMonth() === month && d.getFullYear() === year; })
-      .reduce((s, v) => s + v.original_value, 0)
+      .filter((v) => {
+        const d = new Date(v.created_at);
+        return d.getMonth() === month && d.getFullYear() === year;
+      })
+      .reduce((s, v) => s + v.original_value, 0),
   );
 
   const maxVal = Math.max(...data, 1);
@@ -73,14 +76,22 @@ function TradeHistoryChart({ vouchers }: { vouchers: { created_at: string; origi
   );
 }
 
+// ─── Screen ──────────────────────────────────────────────────────────────────
 export default function ProfileScreen() {
   const { user, profile, signOut } = useAuthStore();
   const { vouchers } = useWalletStore();
+
   const [signingOut, setSigningOut] = useState(false);
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
 
   // Which modal is open
   const [openModal, setOpenModal] = useState<'payment' | 'history' | 'notifications' | 'security' | null>(null);
+
+  // Confirmation modals (replacing Alert.alert)
+  const [signOutConfirm, setSignOutConfirm] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [passwordResetSent, setPasswordResetSent] = useState(false);
+  const [passwordResetConfirm, setPasswordResetConfirm] = useState(false);
 
   // Payment
   const [paymentTab, setPaymentTab] = useState<'bank' | 'paybox' | 'bit'>('bank');
@@ -90,6 +101,8 @@ export default function ProfileScreen() {
   const [idNumber, setIdNumber] = useState('');
   const [payboxPhone, setPayboxPhone] = useState('');
   const [bitPhone, setBitPhone] = useState('');
+  const [paymentError, setPaymentError] = useState('');
+  const [paymentSaved, setPaymentSaved] = useState(false);
 
   // Notifications
   const [notifExpiring, setNotifExpiring] = useState(true);
@@ -99,8 +112,10 @@ export default function ProfileScreen() {
 
   // Security
   const [twoFA, setTwoFA] = useState(false);
+  const [twoFABanner, setTwoFABanner] = useState(false);
   const [biometric, setBiometric] = useState(false);
 
+  // Derived
   const activeVouchers = vouchers.filter((v) => v.status === 'active');
   const totalValue = activeVouchers.reduce((sum, v) => sum + v.remaining_value, 0);
   const expiredCount = vouchers.filter((v) => v.status === 'expired').length;
@@ -113,30 +128,42 @@ export default function ProfileScreen() {
   async function pickAvatar() {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true, aspect: [1, 1], quality: 0.8,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
     });
     if (!result.canceled && result.assets[0]) setAvatarUri(result.assets[0].uri);
   }
 
-  async function handleSignOut() {
-    Alert.alert('Sign Out', 'Are you sure?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Sign Out', style: 'destructive', onPress: async () => { setSigningOut(true); await signOut(); setSigningOut(false); } },
-    ]);
+  async function confirmSignOut() {
+    setSignOutConfirm(false);
+    setSigningOut(true);
+    await signOut();
+    setSigningOut(false);
   }
 
   function savePayment() {
+    setPaymentError('');
     if (paymentTab === 'bank' && (!selectedBank || !accountNumber || !branchNumber || !idNumber)) {
-      Alert.alert('Required', 'Fill all bank details'); return;
+      setPaymentError('Please fill in all bank details');
+      return;
     }
-    Alert.alert('Saved!', 'Payment method saved.'); setOpenModal(null);
+    if (paymentTab === 'paybox' && !payboxPhone.trim()) {
+      setPaymentError('Please enter your PayBox phone number');
+      return;
+    }
+    if (paymentTab === 'bit' && !bitPhone.trim()) {
+      setPaymentError('Please enter your Bit phone number');
+      return;
+    }
+    setPaymentSaved(true);
+    setTimeout(() => { setPaymentSaved(false); setOpenModal(null); }, 1200);
   }
 
-  function handleDeleteAccount() {
-    Alert.alert('Delete Account', 'Permanently delete your account and all vouchers? This cannot be undone.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => Alert.alert('Request Sent', 'You will receive a confirmation email.') },
-    ]);
+  function handlePasswordReset() {
+    setPasswordResetConfirm(false);
+    setPasswordResetSent(true);
+    setTimeout(() => setPasswordResetSent(false), 3000);
   }
 
   return (
@@ -152,9 +179,10 @@ export default function ProfileScreen() {
           <TouchableOpacity style={styles.avatarWrapper} onPress={pickAvatar}>
             {avatarUri
               ? <Image source={{ uri: avatarUri }} style={styles.avatarImage} />
-              : <View style={styles.avatar}><Text style={styles.avatarText}>{initials}</Text></View>
-            }
-            <View style={styles.avatarEditBadge}><Text style={styles.avatarEditIcon}>📷</Text></View>
+              : <View style={styles.avatar}><Text style={styles.avatarText}>{initials}</Text></View>}
+            <View style={styles.avatarEditBadge}>
+              <Text style={styles.avatarEditIcon}>📷</Text>
+            </View>
           </TouchableOpacity>
           <Text style={styles.displayName}>{profile?.display_name ?? 'User'}</Text>
           <Text style={styles.email}>{user?.email}</Text>
@@ -182,14 +210,16 @@ export default function ProfileScreen() {
             <Text style={styles.statLabel}>Used</Text>
           </View>
           <View style={styles.statCard}>
-            <Text style={[styles.statValue, expiredCount > 0 && { color: colors.error }]}>{expiredCount}</Text>
+            <Text style={[styles.statValue, expiredCount > 0 && { color: colors.error }]}>
+              {expiredCount}
+            </Text>
             <Text style={styles.statLabel}>Expired</Text>
           </View>
         </View>
 
-        {/* Menu — all items open modals */}
+        {/* Menu */}
         <View style={styles.menuCard}>
-          <MenuItem emoji="💳" label="Payment Methods" onPress={() => setOpenModal('payment')} />
+          <MenuItem emoji="💳" label="Payment Methods" onPress={() => { setPaymentError(''); setPaymentSaved(false); setOpenModal('payment'); }} />
           <View style={styles.divider} />
           <MenuItem emoji="📊" label="Trade History" onPress={() => setOpenModal('history')} />
           <View style={styles.divider} />
@@ -198,23 +228,98 @@ export default function ProfileScreen() {
           <MenuItem emoji="🔒" label="Security" onPress={() => setOpenModal('security')} />
         </View>
 
-        <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut} disabled={signingOut}>
-          {signingOut ? <ActivityIndicator color={colors.error} /> : <Text style={styles.signOutText}>Sign Out</Text>}
+        <TouchableOpacity
+          style={styles.signOutButton}
+          onPress={() => setSignOutConfirm(true)}
+          disabled={signingOut}
+        >
+          {signingOut
+            ? <ActivityIndicator color={colors.error} />
+            : <Text style={styles.signOutText}>Sign Out</Text>}
         </TouchableOpacity>
         <Text style={styles.version}>VouchiX v1.0.0</Text>
       </ScrollView>
 
-      {/* Payment Methods Modal */}
+      {/* ══ SIGN OUT CONFIRM ══ */}
+      <Modal visible={signOutConfirm} transparent animationType="fade">
+        <View style={styles.overlay}>
+          <View style={styles.confirmBox}>
+            <Text style={styles.confirmTitle}>Sign Out?</Text>
+            <Text style={styles.confirmSub}>You'll need to sign in again to access your wallet.</Text>
+            <View style={styles.confirmBtns}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => setSignOutConfirm(false)}>
+                <Text style={styles.cancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.confirmActionBtn} onPress={confirmSignOut}>
+                <Text style={styles.confirmActionText}>Sign Out</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ══ DELETE ACCOUNT CONFIRM ══ */}
+      <Modal visible={deleteConfirm} transparent animationType="fade">
+        <View style={styles.overlay}>
+          <View style={styles.confirmBox}>
+            <Text style={styles.confirmTitle}>Delete Account?</Text>
+            <Text style={styles.confirmSub}>
+              Permanently delete your account and all vouchers? This cannot be undone.
+            </Text>
+            <View style={styles.confirmBtns}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => setDeleteConfirm(false)}>
+                <Text style={styles.cancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.confirmActionBtn, { backgroundColor: colors.error }]}
+                onPress={() => setDeleteConfirm(false)}
+              >
+                <Text style={styles.confirmActionText}>Delete</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ══ PASSWORD RESET CONFIRM ══ */}
+      <Modal visible={passwordResetConfirm} transparent animationType="fade">
+        <View style={styles.overlay}>
+          <View style={styles.confirmBox}>
+            <Text style={styles.confirmTitle}>Reset Password?</Text>
+            <Text style={styles.confirmSub}>
+              Send a reset link to{'\n'}<Text style={{ fontWeight: '700', color: colors.text }}>{user?.email}</Text>?
+            </Text>
+            <View style={styles.confirmBtns}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => setPasswordResetConfirm(false)}>
+                <Text style={styles.cancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.confirmActionBtn} onPress={handlePasswordReset}>
+                <Text style={styles.confirmActionText}>Send Link</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ══ PAYMENT METHODS MODAL ══ */}
       <Modal visible={openModal === 'payment'} animationType="slide" presentationStyle="pageSheet">
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => setOpenModal(null)}><Text style={styles.modalCancel}>Cancel</Text></TouchableOpacity>
+            <TouchableOpacity onPress={() => setOpenModal(null)}>
+              <Text style={styles.modalCancel}>Cancel</Text>
+            </TouchableOpacity>
             <Text style={styles.modalTitle}>Payment Methods</Text>
-            <TouchableOpacity onPress={savePayment}><Text style={styles.modalSave}>Save</Text></TouchableOpacity>
+            <TouchableOpacity onPress={savePayment}>
+              <Text style={styles.modalSave}>Save</Text>
+            </TouchableOpacity>
           </View>
           <View style={styles.paymentTabs}>
             {(['bank', 'paybox', 'bit'] as const).map((t) => (
-              <TouchableOpacity key={t} style={[styles.payTab, paymentTab === t && styles.payTabActive]} onPress={() => setPaymentTab(t)}>
+              <TouchableOpacity
+                key={t}
+                style={[styles.payTab, paymentTab === t && styles.payTabActive]}
+                onPress={() => { setPaymentTab(t); setPaymentError(''); }}
+              >
                 <Text style={[styles.payTabText, paymentTab === t && styles.payTabTextActive]}>
                   {t === 'bank' ? '🏦 Bank' : t === 'paybox' ? '📱 PayBox' : '💙 Bit'}
                 </Text>
@@ -222,12 +327,26 @@ export default function ProfileScreen() {
             ))}
           </View>
           <ScrollView style={styles.modalScroll} contentContainerStyle={styles.modalBody}>
+            {paymentError.length > 0 && (
+              <View style={styles.errorBanner}>
+                <Text style={styles.errorBannerText}>⚠ {paymentError}</Text>
+              </View>
+            )}
+            {paymentSaved && (
+              <View style={styles.successBanner}>
+                <Text style={styles.successBannerText}>✓ Payment method saved!</Text>
+              </View>
+            )}
             {paymentTab === 'bank' && (
               <View>
                 <Text style={styles.fieldLabel}>Bank</Text>
                 <ScrollView style={styles.bankPicker} nestedScrollEnabled>
                   {ISRAELI_BANKS.map((b) => (
-                    <TouchableOpacity key={b} style={[styles.bankOption, selectedBank === b && styles.bankOptionSel]} onPress={() => setSelectedBank(b)}>
+                    <TouchableOpacity
+                      key={b}
+                      style={[styles.bankOption, selectedBank === b && styles.bankOptionSel]}
+                      onPress={() => setSelectedBank(b)}
+                    >
                       <Text style={[styles.bankOptionText, selectedBank === b && styles.bankOptionTextSel]}>{b}</Text>
                       {selectedBank === b && <Text style={styles.bankCheck}>✓</Text>}
                     </TouchableOpacity>
@@ -239,32 +358,40 @@ export default function ProfileScreen() {
                 <TextInput style={styles.fieldInput} placeholder="e.g. 123456789" keyboardType="number-pad" value={accountNumber} onChangeText={setAccountNumber} placeholderTextColor={colors.textMuted} />
                 <Text style={styles.fieldLabel}>ID Number</Text>
                 <TextInput style={styles.fieldInput} placeholder="e.g. 012345678" keyboardType="number-pad" value={idNumber} onChangeText={setIdNumber} placeholderTextColor={colors.textMuted} />
-                <View style={styles.legalNote}><Text style={styles.legalText}>🔒 Bank details are encrypted and used only for payout from voucher sales.</Text></View>
+                <View style={styles.legalNote}>
+                  <Text style={styles.legalText}>🔒 Bank details are encrypted and used only for payout from voucher sales.</Text>
+                </View>
               </View>
             )}
             {paymentTab === 'paybox' && (
               <View>
                 <Text style={styles.fieldLabel}>PayBox Phone Number</Text>
                 <TextInput style={styles.fieldInput} placeholder="05X-XXXXXXX" keyboardType="phone-pad" value={payboxPhone} onChangeText={setPayboxPhone} placeholderTextColor={colors.textMuted} />
-                <View style={styles.legalNote}><Text style={styles.legalText}>Payouts sent to your PayBox account after sales complete.</Text></View>
+                <View style={styles.legalNote}>
+                  <Text style={styles.legalText}>Payouts sent to your PayBox account after sales complete.</Text>
+                </View>
               </View>
             )}
             {paymentTab === 'bit' && (
               <View>
                 <Text style={styles.fieldLabel}>Bit Phone Number</Text>
                 <TextInput style={styles.fieldInput} placeholder="05X-XXXXXXX" keyboardType="phone-pad" value={bitPhone} onChangeText={setBitPhone} placeholderTextColor={colors.textMuted} />
-                <View style={styles.legalNote}><Text style={styles.legalText}>Payouts sent to your Bit account after sales complete.</Text></View>
+                <View style={styles.legalNote}>
+                  <Text style={styles.legalText}>Payouts sent to your Bit account after sales complete.</Text>
+                </View>
               </View>
             )}
           </ScrollView>
         </View>
       </Modal>
 
-      {/* Trade History Modal */}
+      {/* ══ TRADE HISTORY MODAL ══ */}
       <Modal visible={openModal === 'history'} animationType="slide" presentationStyle="pageSheet">
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => setOpenModal(null)}><Text style={styles.modalCancel}>Close</Text></TouchableOpacity>
+            <TouchableOpacity onPress={() => setOpenModal(null)}>
+              <Text style={styles.modalCancel}>Close</Text>
+            </TouchableOpacity>
             <Text style={styles.modalTitle}>Trade History</Text>
             <View style={{ width: 56 }} />
           </View>
@@ -279,7 +406,9 @@ export default function ProfileScreen() {
                 <Text style={styles.chartStatLabel}>Total vouchers added</Text>
               </View>
               <View style={styles.chartStatItem}>
-                <Text style={styles.chartStatValue}>{formatCurrency(vouchers.reduce((s, v) => s + v.original_value, 0))}</Text>
+                <Text style={styles.chartStatValue}>
+                  {formatCurrency(vouchers.reduce((s, v) => s + v.original_value, 0))}
+                </Text>
                 <Text style={styles.chartStatLabel}>Total face value</Text>
               </View>
             </View>
@@ -290,22 +419,30 @@ export default function ProfileScreen() {
                     <Text style={styles.historyBrand}>{v.brand}</Text>
                     <Text style={styles.historyDate}>{new Date(v.created_at).toLocaleDateString('en-GB')}</Text>
                   </View>
-                  <Text style={[styles.historyVal, v.status === 'expired' && { color: colors.error }, v.status === 'used' && { color: colors.textMuted }]}>
+                  <Text style={[
+                    styles.historyVal,
+                    v.status === 'expired' && { color: colors.error },
+                    v.status === 'used' && { color: colors.textMuted },
+                  ]}>
                     {formatCurrency(v.original_value)}
                   </Text>
                 </View>
               ))}
-              {vouchers.length === 0 && <Text style={styles.emptyText}>No vouchers added yet</Text>}
+              {vouchers.length === 0 && (
+                <Text style={styles.emptyText}>No vouchers added yet</Text>
+              )}
             </View>
           </ScrollView>
         </View>
       </Modal>
 
-      {/* Notification Settings Modal */}
+      {/* ══ NOTIFICATION SETTINGS MODAL ══ */}
       <Modal visible={openModal === 'notifications'} animationType="slide" presentationStyle="pageSheet">
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => setOpenModal(null)}><Text style={styles.modalCancel}>Close</Text></TouchableOpacity>
+            <TouchableOpacity onPress={() => setOpenModal(null)}>
+              <Text style={styles.modalCancel}>Close</Text>
+            </TouchableOpacity>
             <Text style={styles.modalTitle}>Notification Settings</Text>
             <View style={{ width: 56 }} />
           </View>
@@ -323,29 +460,44 @@ export default function ProfileScreen() {
         </View>
       </Modal>
 
-      {/* Security Modal */}
+      {/* ══ SECURITY MODAL ══ */}
       <Modal visible={openModal === 'security'} animationType="slide" presentationStyle="pageSheet">
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => setOpenModal(null)}><Text style={styles.modalCancel}>Close</Text></TouchableOpacity>
+            <TouchableOpacity onPress={() => setOpenModal(null)}>
+              <Text style={styles.modalCancel}>Close</Text>
+            </TouchableOpacity>
             <Text style={styles.modalTitle}>Security</Text>
             <View style={{ width: 56 }} />
           </View>
           <ScrollView style={styles.modalScroll} contentContainerStyle={styles.modalBody}>
+            {twoFABanner && (
+              <View style={styles.successBanner}>
+                <Text style={styles.successBannerText}>✓ 2FA enabled — you'll receive an OTP on login from new devices.</Text>
+              </View>
+            )}
+            {passwordResetSent && (
+              <View style={styles.successBanner}>
+                <Text style={styles.successBannerText}>✓ Reset link sent! Check your inbox.</Text>
+              </View>
+            )}
             <View style={styles.togglesCard}>
-              <ToggleRow label="Two-Factor Authentication" sub="OTP on new device login" value={twoFA}
-                onValueChange={(v) => { setTwoFA(v); if (v) Alert.alert('2FA Enabled', 'You\'ll receive an OTP on login from new devices.'); }} />
+              <ToggleRow
+                label="Two-Factor Authentication"
+                sub="OTP on new device login"
+                value={twoFA}
+                onValueChange={(v) => {
+                  setTwoFA(v);
+                  if (v) { setTwoFABanner(true); setTimeout(() => setTwoFABanner(false), 3000); }
+                }}
+              />
               <View style={styles.divider} />
               <ToggleRow label="Biometric Login" sub="Face ID / fingerprint" value={biometric} onValueChange={setBiometric} />
             </View>
             <View style={[styles.menuCard, { marginTop: 0 }]}>
-              <MenuItem emoji="🔑" label="Change Password" onPress={() =>
-                Alert.alert('Reset Password', `Send a reset link to ${user?.email}?`, [
-                  { text: 'Cancel', style: 'cancel' },
-                  { text: 'Send', onPress: () => Alert.alert('Sent!', 'Check your inbox.') },
-                ])} />
+              <MenuItem emoji="🔑" label="Change Password" onPress={() => setPasswordResetConfirm(true)} />
             </View>
-            <TouchableOpacity style={styles.deleteAccountBtn} onPress={handleDeleteAccount}>
+            <TouchableOpacity style={styles.deleteAccountBtn} onPress={() => setDeleteConfirm(true)}>
               <Text style={styles.deleteAccountText}>🗑 Delete Account</Text>
             </TouchableOpacity>
           </ScrollView>
@@ -355,6 +507,7 @@ export default function ProfileScreen() {
   );
 }
 
+// ─── Sub-components ───────────────────────────────────────────────────────────
 function MenuItem({ emoji, label, onPress }: { emoji: string; label: string; onPress: () => void }) {
   return (
     <TouchableOpacity style={styles.menuItem} onPress={onPress}>
@@ -365,31 +518,66 @@ function MenuItem({ emoji, label, onPress }: { emoji: string; label: string; onP
   );
 }
 
-function ToggleRow({ label, sub, value, onValueChange }: { label: string; sub: string; value: boolean; onValueChange: (v: boolean) => void }) {
+function ToggleRow({ label, sub, value, onValueChange }: {
+  label: string; sub: string; value: boolean; onValueChange: (v: boolean) => void;
+}) {
   return (
     <View style={styles.toggleRow}>
       <View style={styles.toggleLabels}>
         <Text style={styles.toggleLabel}>{label}</Text>
         <Text style={styles.toggleSub}>{sub}</Text>
       </View>
-      <Switch value={value} onValueChange={onValueChange} trackColor={{ false: colors.border, true: colors.accent }} thumbColor={colors.white} />
+      <Switch
+        value={value}
+        onValueChange={onValueChange}
+        trackColor={{ false: colors.border, true: colors.accent }}
+        thumbColor={colors.white}
+      />
     </View>
   );
 }
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bgLight },
-  header: { backgroundColor: colors.primary, paddingTop: spacing.xs, paddingBottom: spacing.xl, paddingHorizontal: spacing.md },
+  header: {
+    backgroundColor: colors.primary,
+    paddingTop: spacing.xs,
+    paddingBottom: spacing.xl,
+    paddingHorizontal: spacing.md,
+  },
   title: { fontSize: 24, fontWeight: '800', color: colors.white },
   scroll: { flex: 1 },
   content: { padding: spacing.md, paddingBottom: 48, gap: spacing.md },
 
-  profileCard: { backgroundColor: colors.cardBg, borderRadius: radius.lg, padding: spacing.lg, alignItems: 'center' },
+  profileCard: {
+    backgroundColor: colors.cardBg,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    alignItems: 'center',
+  },
   avatarWrapper: { position: 'relative', marginBottom: spacing.md },
-  avatar: { width: 88, height: 88, borderRadius: 44, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
+  avatar: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   avatarImage: { width: 88, height: 88, borderRadius: 44 },
   avatarText: { color: colors.white, fontSize: fontSizes.xxl, fontWeight: '800' },
-  avatarEditBadge: { position: 'absolute', bottom: 0, right: 0, backgroundColor: colors.secondary, borderRadius: 12, width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
+  avatarEditBadge: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    backgroundColor: colors.secondary,
+    borderRadius: 12,
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   avatarEditIcon: { fontSize: 12 },
   displayName: { fontSize: fontSizes.xl, fontWeight: '700', color: colors.text },
   email: { fontSize: fontSizes.sm, color: colors.textMuted, marginTop: spacing.xs },
@@ -398,7 +586,14 @@ const styles = StyleSheet.create({
   trades: { fontSize: fontSizes.sm, color: colors.textMuted },
 
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  statCard: { flex: 1, minWidth: '45%', backgroundColor: colors.cardBg, borderRadius: radius.lg, padding: spacing.md, alignItems: 'center' },
+  statCard: {
+    flex: 1,
+    minWidth: '45%',
+    backgroundColor: colors.cardBg,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    alignItems: 'center',
+  },
   statValue: { fontSize: fontSizes.lg, fontWeight: '800', color: colors.text },
   statLabel: { fontSize: fontSizes.xs, color: colors.textMuted, marginTop: 2, textAlign: 'center' },
 
@@ -415,48 +610,179 @@ const styles = StyleSheet.create({
   toggleLabel: { fontSize: fontSizes.md, color: colors.text, fontWeight: '600' },
   toggleSub: { fontSize: fontSizes.xs, color: colors.textMuted, marginTop: 2 },
 
-  signOutButton: { backgroundColor: colors.cardBg, borderRadius: radius.md, padding: spacing.md, alignItems: 'center', borderWidth: 1, borderColor: colors.error },
+  signOutButton: {
+    backgroundColor: colors.cardBg,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.error,
+  },
   signOutText: { color: colors.error, fontSize: fontSizes.md, fontWeight: '600' },
   version: { textAlign: 'center', fontSize: fontSizes.xs, color: colors.gray400 },
 
+  // Confirmation overlay
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.lg,
+  },
+  confirmBox: {
+    backgroundColor: colors.cardBg,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    width: '100%',
+    maxWidth: 320,
+  },
+  confirmTitle: { fontSize: fontSizes.lg, fontWeight: '800', color: colors.text, marginBottom: spacing.xs },
+  confirmSub: { fontSize: fontSizes.sm, color: colors.textMuted, marginBottom: spacing.lg, lineHeight: 20 },
+  confirmBtns: { flexDirection: 'row', gap: spacing.sm },
+  cancelBtn: {
+    flex: 1,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+  },
+  cancelBtnText: { color: colors.textMuted, fontWeight: '600' },
+  confirmActionBtn: {
+    flex: 1,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    backgroundColor: colors.accent,
+    alignItems: 'center',
+  },
+  confirmActionText: { color: colors.white, fontWeight: '700' },
+
+  // Banners
+  errorBanner: {
+    backgroundColor: colors.error + '15',
+    borderWidth: 1,
+    borderColor: colors.error,
+    borderRadius: radius.md,
+    padding: spacing.md,
+  },
+  errorBannerText: { color: colors.error, fontSize: fontSizes.sm, fontWeight: '600' },
+  successBanner: {
+    backgroundColor: colors.success + '15',
+    borderWidth: 1,
+    borderColor: colors.success,
+    borderRadius: radius.md,
+    padding: spacing.md,
+  },
+  successBannerText: { color: colors.success, fontSize: fontSizes.sm, fontWeight: '600' },
+
+  // Modals
   modalContainer: { flex: 1, backgroundColor: colors.bgLight },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: spacing.md, paddingTop: 56, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.cardBg },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: spacing.md,
+    paddingTop: 56,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    backgroundColor: colors.cardBg,
+  },
   modalTitle: { fontSize: fontSizes.lg, fontWeight: '700', color: colors.text },
   modalCancel: { fontSize: fontSizes.md, color: colors.textMuted },
   modalSave: { fontSize: fontSizes.md, color: colors.accent, fontWeight: '700' },
   modalScroll: { flex: 1 },
   modalBody: { padding: spacing.md, paddingBottom: 48, gap: spacing.md },
 
-  paymentTabs: { flexDirection: 'row', backgroundColor: colors.cardBg, borderBottomWidth: 1, borderBottomColor: colors.border },
+  paymentTabs: {
+    flexDirection: 'row',
+    backgroundColor: colors.cardBg,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
   payTab: { flex: 1, paddingVertical: spacing.md, alignItems: 'center' },
   payTabActive: { borderBottomWidth: 2, borderBottomColor: colors.accent },
   payTabText: { fontSize: fontSizes.sm, fontWeight: '600', color: colors.textMuted },
   payTabTextActive: { color: colors.accent },
-  fieldLabel: { fontSize: fontSizes.sm, fontWeight: '600', color: colors.text, marginBottom: spacing.xs, marginTop: spacing.md },
-  fieldInput: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: spacing.md, fontSize: fontSizes.md, color: colors.text, backgroundColor: colors.cardBg },
-  bankPicker: { maxHeight: 180, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: colors.cardBg },
-  bankOption: { padding: spacing.md, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: colors.gray100 },
+  fieldLabel: {
+    fontSize: fontSizes.sm,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: spacing.xs,
+    marginTop: spacing.md,
+  },
+  fieldInput: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    fontSize: fontSizes.md,
+    color: colors.text,
+    backgroundColor: colors.cardBg,
+  },
+  bankPicker: {
+    maxHeight: 180,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    backgroundColor: colors.cardBg,
+  },
+  bankOption: {
+    padding: spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.gray100,
+  },
   bankOptionSel: { backgroundColor: colors.accent + '10' },
   bankOptionText: { flex: 1, fontSize: fontSizes.md, color: colors.text },
   bankOptionTextSel: { color: colors.accent, fontWeight: '700' },
   bankCheck: { color: colors.accent, fontWeight: '700', fontSize: fontSizes.lg },
-  legalNote: { backgroundColor: colors.gray100, borderRadius: radius.md, padding: spacing.md, marginTop: spacing.md },
+  legalNote: {
+    backgroundColor: colors.gray100,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginTop: spacing.md,
+  },
   legalText: { fontSize: fontSizes.xs, color: colors.textMuted, lineHeight: 18 },
 
   chartTitle: { fontSize: fontSizes.sm, fontWeight: '700', color: colors.text, textAlign: 'center' },
   chartArea: { alignItems: 'center', marginVertical: spacing.md },
   chartStats: { flexDirection: 'row', gap: spacing.sm },
-  chartStatItem: { flex: 1, backgroundColor: colors.cardBg, borderRadius: radius.md, padding: spacing.md, alignItems: 'center' },
+  chartStatItem: {
+    flex: 1,
+    backgroundColor: colors.cardBg,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    alignItems: 'center',
+  },
   chartStatValue: { fontSize: fontSizes.lg, fontWeight: '800', color: colors.text },
   chartStatLabel: { fontSize: fontSizes.xs, color: colors.textMuted, textAlign: 'center', marginTop: 2 },
   historyList: { gap: spacing.sm },
-  historyRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.cardBg, borderRadius: radius.md, padding: spacing.md },
+  historyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.cardBg,
+    borderRadius: radius.md,
+    padding: spacing.md,
+  },
   historyLeft: { flex: 1 },
   historyBrand: { fontSize: fontSizes.md, fontWeight: '700', color: colors.text },
   historyDate: { fontSize: fontSizes.xs, color: colors.textMuted, marginTop: 2 },
   historyVal: { fontSize: fontSizes.md, fontWeight: '700', color: colors.accent },
-  emptyText: { textAlign: 'center', color: colors.textMuted, fontSize: fontSizes.md, paddingVertical: spacing.lg },
+  emptyText: {
+    textAlign: 'center',
+    color: colors.textMuted,
+    fontSize: fontSizes.md,
+    paddingVertical: spacing.lg,
+  },
 
-  deleteAccountBtn: { borderWidth: 1, borderColor: colors.error, borderRadius: radius.md, padding: spacing.md, alignItems: 'center', backgroundColor: colors.cardBg },
+  deleteAccountBtn: {
+    borderWidth: 1,
+    borderColor: colors.error,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    alignItems: 'center',
+    backgroundColor: colors.cardBg,
+  },
   deleteAccountText: { color: colors.error, fontWeight: '700', fontSize: fontSizes.md },
 });

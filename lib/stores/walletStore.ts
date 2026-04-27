@@ -31,6 +31,14 @@ export const useWalletStore = create<WalletState>((set) => ({
   fetchVouchers: async (userId: string) => {
     set({ loading: true, error: null });
     try {
+      // Auto-mark any active vouchers whose expiry date has passed
+      await supabase
+        .from('vouchers')
+        .update({ status: 'expired', updated_at: new Date().toISOString() })
+        .eq('owner_id', userId)
+        .eq('status', 'active')
+        .lt('expires_at', new Date().toISOString());
+
       const { data, error } = await supabase
         .from('vouchers')
         .select('*')

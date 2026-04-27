@@ -45,7 +45,7 @@ export default function WalletScreen() {
   useEffect(() => { refresh(); }, [refresh]);
 
   // Re-fetch every time the screen comes into focus (e.g. after adding a voucher)
-  useFocusEffect(refresh);
+  useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
 
   const activeVouchers = vouchers.filter((v) => v.status === 'active');
 

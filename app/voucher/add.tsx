@@ -5,7 +5,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
-  Alert,
   ActivityIndicator,
   Modal,
   FlatList,
@@ -44,6 +43,8 @@ export default function AddVoucherScreen() {
   const [brand, setBrand] = useState(existing?.brand ?? '');
   const [originalValue, setOriginalValue] = useState(existing?.original_value?.toString() ?? '');
   const [remainingValue, setRemainingValue] = useState(existing?.remaining_value?.toString() ?? '');
+  // Track whether user has manually edited remaining — if not, keep it in sync with original
+  const [remainingEdited, setRemainingEdited] = useState(isEdit);
   const [voucherType, setVoucherType] = useState<VoucherType | null>(existing?.voucher_type ?? null);
   const [voucherCode, setVoucherCode] = useState(existing?.voucher_code ?? '');
   const [pinCode, setPinCode] = useState(existing?.pin_code ?? '');
@@ -136,7 +137,15 @@ export default function AddVoucherScreen() {
     const rem = remainingValue ? parseFloat(remainingValue) : orig;
 
     if (!isVoucherGroup && (isNaN(orig) || orig <= 0)) {
-      setSaveError('Invalid value amount');
+      setSaveError('Invalid original value');
+      return;
+    }
+    if (!isVoucherGroup && rem > orig) {
+      setSaveError('Remaining value cannot be higher than the original value');
+      return;
+    }
+    if (voucherType === 'digital' && !voucherCode.trim()) {
+      setSaveError('Voucher Code is required for Digital Code type');
       return;
     }
 
@@ -270,7 +279,7 @@ export default function AddVoucherScreen() {
               value={originalValue}
               onChangeText={(v) => {
                 setOriginalValue(v);
-                if (!remainingValue) setRemainingValue(v);
+                if (!remainingEdited) setRemainingValue(v);
               }}
               editable={!formDisabled}
             />
@@ -278,14 +287,22 @@ export default function AddVoucherScreen() {
           <View style={styles.colItem}>
             <Text style={[styles.label, formDisabled && styles.labelDisabled]}>Remaining (₪)</Text>
             <TextInput
-              style={[styles.input, formDisabled && styles.inputDisabled]}
+              style={[
+                styles.input,
+                formDisabled && styles.inputDisabled,
+                remainingEdited && remainingValue && parseFloat(remainingValue) > parseFloat(originalValue || '0')
+                  ? styles.inputError : null,
+              ]}
               placeholder="Same as original"
               placeholderTextColor={colors.textMuted}
               keyboardType="decimal-pad"
               value={remainingValue}
-              onChangeText={setRemainingValue}
+              onChangeText={(v) => { setRemainingValue(v); setRemainingEdited(true); }}
               editable={!formDisabled}
             />
+            {remainingEdited && remainingValue && parseFloat(remainingValue) > parseFloat(originalValue || '0') ? (
+              <Text style={styles.fieldError}>Cannot exceed original value</Text>
+            ) : null}
           </View>
         </View>
       </View>
@@ -356,15 +373,18 @@ export default function AddVoucherScreen() {
             <View style={[styles.badge, styles.badgeGreen]}>
               <Text style={styles.badgeText}>✓ Instant trading / Auto transfer</Text>
             </View>
-            <Text style={styles.label}>Voucher Code</Text>
+            <Text style={styles.label}>Voucher Code <Text style={styles.required}>*</Text></Text>
             <TextInput
-              style={[styles.input, styles.codeInput]}
+              style={[styles.input, styles.codeInput, !voucherCode.trim() ? styles.inputRequired : null]}
               placeholder="XXXX-XXXX-XXXX-XXXX"
               placeholderTextColor={colors.textMuted}
               autoCapitalize="characters"
               value={voucherCode}
               onChangeText={setVoucherCode}
             />
+            {!voucherCode.trim() && (
+              <Text style={styles.fieldHint}>Required for digital vouchers</Text>
+            )}
             <Text style={styles.label}>PIN (optional)</Text>
             <TextInput
               style={[styles.input, styles.codeInput]}
@@ -667,6 +687,11 @@ const styles = StyleSheet.create({
   inputDisabled: { backgroundColor: colors.gray100, color: colors.textMuted },
   codeInput: { fontFamily: 'monospace', letterSpacing: 2 },
   textArea: { height: 80, textAlignVertical: 'top' },
+  inputError: { borderColor: colors.error, backgroundColor: colors.error + '08' },
+  inputRequired: { borderColor: colors.warning, borderWidth: 1.5 },
+  fieldError: { color: colors.error, fontSize: fontSizes.xs, fontWeight: '600', marginTop: 4 },
+  fieldHint: { color: colors.warning, fontSize: fontSizes.xs, fontWeight: '500', marginTop: 4 },
+  required: { color: colors.error, fontWeight: '700' },
 
   datePicker: {
     borderWidth: 1,

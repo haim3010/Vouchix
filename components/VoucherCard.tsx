@@ -6,6 +6,7 @@ import { formatCurrency } from '@/lib/utils/currency';
 import { expiryLabel, expiryUrgency } from '@/lib/utils/expiration';
 import { getBrandInfo } from '@/lib/constants/brands';
 import { colors, radius, spacing, fontSizes } from '@/lib/constants/theme';
+import BrandLogo from '@/components/BrandLogo';
 
 interface Props {
   voucher: Voucher;
@@ -37,8 +38,8 @@ export default function VoucherCard({ voucher, onDelete }: Props) {
       >
         <View style={styles.cardHeader}>
           <View style={styles.brandRow}>
-            <View style={[styles.brandBadge, { backgroundColor: brand.color + '20' }]}>
-              <Text style={styles.brandEmoji}>{brand.emoji}</Text>
+            <View style={[styles.brandBadge, { backgroundColor: brand.color + '15' }]}>
+              <BrandLogo domain={brand.domain} name={voucher.brand} color={brand.color} size={22} />
               <Text style={[styles.brandName, { color: brand.color }]}>{voucher.brand}</Text>
             </View>
             {categoryLabel && (
@@ -154,7 +155,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     gap: 4,
   },
-  brandEmoji: { fontSize: 16 },
+  brandEmoji: { fontSize: 16 }, // kept for reference, replaced by BrandLogo
   brandName: { fontSize: fontSizes.sm, fontWeight: '700' },
   categoryBadge: {
     backgroundColor: colors.gray100,

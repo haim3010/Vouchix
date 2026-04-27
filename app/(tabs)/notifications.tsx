@@ -38,7 +38,7 @@ const STATUS_LABEL: Record<string, string> = {
 
 export default function NotificationsScreen() {
   const { user } = useAuthStore();
-  const { vouchers, fetchVouchers } = useWalletStore();
+  const { vouchers, fetchVouchers, deleteVoucher } = useWalletStore();
   const {
     myOffers, incomingOffers,
     fetchMyOffers, fetchIncomingOffers, respondToOffer, fetchListings,
@@ -51,6 +51,10 @@ export default function NotificationsScreen() {
 
   // Accept/Reject confirmation modal (replaces Alert.alert which doesn't work)
   const [respondTarget, setRespondTarget] = useState<{ offer: OfferWithBuyer; status: 'accepted' | 'rejected' } | null>(null);
+
+  // Delete history item modal
+  const [deleteHistoryTarget, setDeleteHistoryTarget] = useState<{ id: string; brand: string } | null>(null);
+  const [deleteHistoryLoading, setDeleteHistoryLoading] = useState(false);
 
   // Memoised refresh so both useEffect and useFocusEffect use the same stable reference
   const refresh = useCallback(async () => {
@@ -72,7 +76,7 @@ export default function NotificationsScreen() {
   useEffect(() => { refresh(); }, [refresh]);
 
   // Re-fetch every time this tab comes into focus (catches changes made on other tabs)
-  useFocusEffect(refresh);
+  useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
 
   function handleRespond(offer: OfferWithBuyer, status: 'accepted' | 'rejected') {
     setRespondTarget({ offer, status });
@@ -100,6 +104,17 @@ export default function NotificationsScreen() {
   const usedTotal = usedVouchers.reduce((s, v) => s + v.original_value, 0);
   const expiredTotal = expiredVouchers.reduce((s, v) => s + v.original_value, 0);
   const allOffers = [...incomingOffers, ...myOffers];
+
+  async function confirmDeleteHistory() {
+    if (!deleteHistoryTarget) return;
+    setDeleteHistoryLoading(true);
+    try {
+      await deleteVoucher(deleteHistoryTarget.id);
+    } finally {
+      setDeleteHistoryLoading(false);
+      setDeleteHistoryTarget(null);
+    }
+  }
 
   function toggleSection(s: Section) {
     setOpenSection((prev) => (prev === s ? null : s));
@@ -173,6 +188,12 @@ export default function NotificationsScreen() {
                       <View style={[styles.historyBadge, { backgroundColor: colors.success + '20' }]}>
                         <Text style={[styles.historyBadgeText, { color: colors.success }]}>Used</Text>
                       </View>
+                      <TouchableOpacity
+                        onPress={() => setDeleteHistoryTarget({ id: v.id, brand: v.brand })}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <Text style={styles.historyDeleteBtn}>🗑</Text>
+                      </TouchableOpacity>
                     </View>
                   </View>
                 ))
@@ -205,6 +226,12 @@ export default function NotificationsScreen() {
                       <View style={[styles.historyBadge, { backgroundColor: colors.error + '20' }]}>
                         <Text style={[styles.historyBadgeText, { color: colors.error }]}>Expired</Text>
                       </View>
+                      <TouchableOpacity
+                        onPress={() => setDeleteHistoryTarget({ id: v.id, brand: v.brand })}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <Text style={styles.historyDeleteBtn}>🗑</Text>
+                      </TouchableOpacity>
                     </View>
                   </View>
                 ))
@@ -388,6 +415,36 @@ export default function NotificationsScreen() {
         </View>
       </ScrollView>
 
+      {/* Delete history item confirmation */}
+      <Modal visible={!!deleteHistoryTarget} transparent animationType="fade">
+        <View style={styles.confirmOverlay}>
+          <View style={styles.confirmBox}>
+            <Text style={styles.confirmTitle}>Remove from History?</Text>
+            <Text style={styles.confirmSub}>
+              Permanently delete "{deleteHistoryTarget?.brand}" from your history. This cannot be undone.
+            </Text>
+            <View style={styles.confirmBtns}>
+              <TouchableOpacity
+                style={styles.confirmCancel}
+                onPress={() => setDeleteHistoryTarget(null)}
+                disabled={deleteHistoryLoading}
+              >
+                <Text style={styles.confirmCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.confirmAction, styles.confirmReject]}
+                onPress={confirmDeleteHistory}
+                disabled={deleteHistoryLoading}
+              >
+                <Text style={styles.confirmActionText}>
+                  {deleteHistoryLoading ? 'Deleting…' : 'Delete'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Accept / Reject confirmation (replaces Alert.alert) */}
       <Modal visible={!!respondTarget} transparent animationType="fade">
         <View style={styles.confirmOverlay}>
@@ -489,6 +546,7 @@ const styles = StyleSheet.create({
   historyValue: { fontSize: fontSizes.md, fontWeight: '800' },
   historyBadge: { paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: radius.pill },
   historyBadgeText: { fontSize: fontSizes.xs, fontWeight: '700' },
+  historyDeleteBtn: { fontSize: 14, marginTop: 2 },
 
   subFilter: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.sm },
   subFilterChip: {
