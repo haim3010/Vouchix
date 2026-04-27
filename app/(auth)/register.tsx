@@ -4,7 +4,6 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -20,20 +19,22 @@ export default function RegisterScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   async function handleRegister() {
+    setError('');
     if (!displayName || !email || !password) {
-      Alert.alert('Error', 'Please fill in all fields');
+      setError('Please fill in all fields');
       return;
     }
     if (password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters');
+      setError('Password must be at least 6 characters');
       return;
     }
     setLoading(true);
     try {
-      const { data, error } = await supabase.auth.signUp({ email, password });
-      if (error) throw error;
+      const { data, error: authError } = await supabase.auth.signUp({ email, password });
+      if (authError) throw authError;
       if (data.user) {
         const { error: profileError } = await supabase.from('profiles').insert({
           id: data.user.id,
@@ -42,7 +43,7 @@ export default function RegisterScreen() {
         if (profileError) throw profileError;
       }
     } catch (e) {
-      Alert.alert('Registration failed', e instanceof Error ? e.message : 'Something went wrong');
+      setError(e instanceof Error ? e.message : 'Something went wrong');
     } finally {
       setLoading(false);
     }
@@ -61,6 +62,12 @@ export default function RegisterScreen() {
         </View>
 
         <View style={styles.form}>
+          {error.length > 0 && (
+            <View style={styles.errorBanner}>
+              <Text style={styles.errorBannerText}>⚠ {error}</Text>
+            </View>
+          )}
+
           <Text style={styles.label}>Display Name</Text>
           <TextInput
             style={styles.input}
@@ -149,6 +156,19 @@ const styles = StyleSheet.create({
     backgroundColor: colors.cardBg,
     borderRadius: radius.lg,
     padding: spacing.lg,
+  },
+  errorBanner: {
+    backgroundColor: colors.error + '15',
+    borderWidth: 1,
+    borderColor: colors.error,
+    borderRadius: radius.md,
+    padding: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  errorBannerText: {
+    color: colors.error,
+    fontSize: fontSizes.sm,
+    fontWeight: '600',
   },
   label: {
     fontSize: fontSizes.sm,

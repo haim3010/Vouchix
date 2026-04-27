@@ -4,7 +4,6 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -19,18 +18,20 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   async function handleLogin() {
+    setError('');
     if (!email || !password) {
-      Alert.alert('Error', 'Please fill in all fields');
+      setError('Please fill in all fields');
       return;
     }
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw error;
+      const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
+      if (authError) throw authError;
     } catch (e) {
-      Alert.alert('Login failed', e instanceof Error ? e.message : 'Something went wrong');
+      setError(e instanceof Error ? e.message : 'Something went wrong');
     } finally {
       setLoading(false);
     }
@@ -49,6 +50,12 @@ export default function LoginScreen() {
         </View>
 
         <View style={styles.form}>
+          {error.length > 0 && (
+            <View style={styles.errorBanner}>
+              <Text style={styles.errorBannerText}>⚠ {error}</Text>
+            </View>
+          )}
+
           <Text style={styles.label}>Email</Text>
           <TextInput
             style={styles.input}
@@ -129,6 +136,19 @@ const styles = StyleSheet.create({
     backgroundColor: colors.cardBg,
     borderRadius: radius.lg,
     padding: spacing.lg,
+  },
+  errorBanner: {
+    backgroundColor: colors.error + '15',
+    borderWidth: 1,
+    borderColor: colors.error,
+    borderRadius: radius.md,
+    padding: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  errorBannerText: {
+    color: colors.error,
+    fontSize: fontSizes.sm,
+    fontWeight: '600',
   },
   label: {
     fontSize: fontSizes.sm,
