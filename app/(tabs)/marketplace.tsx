@@ -329,23 +329,6 @@ export default function MarketplaceScreen() {
     const sortLabel = SORT_OPTIONS.find((s) => s.key === localSort)?.label ?? 'Sort';
     return (
       <View style={styles.globalHeader}>
-        {/* Search bar */}
-        <View style={styles.searchBarWrap}>
-          <Text style={styles.searchIcon}>🔍</Text>
-          <TextInput
-            style={styles.searchBarInput}
-            placeholder="Search brand, voucher type..."
-            placeholderTextColor={colors.textMuted}
-            value={globalSearch}
-            onChangeText={setGlobalSearch}
-          />
-          {globalSearch.length > 0 && (
-            <TouchableOpacity onPress={() => setGlobalSearch('')}>
-              <Text style={styles.searchClear}>✕</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
         {/* Brand chips */}
         {availableBrands.length > 0 && (
           <ScrollView
@@ -488,6 +471,25 @@ export default function MarketplaceScreen() {
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* ── Global Market search bar — outside FlatList so TextInput keeps focus ── */}
+      {mode === 'global' && (
+        <View style={styles.searchBarWrap}>
+          <Text style={styles.searchIcon}>🔍</Text>
+          <TextInput
+            style={styles.searchBarInput}
+            placeholder="Search brand, voucher type..."
+            placeholderTextColor={colors.textMuted}
+            value={globalSearch}
+            onChangeText={setGlobalSearch}
+          />
+          {globalSearch.length > 0 && (
+            <TouchableOpacity onPress={() => setGlobalSearch('')}>
+              <Text style={styles.searchClear}>✕</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
 
       {/* ── Global Market ── */}
       {mode === 'global' && (

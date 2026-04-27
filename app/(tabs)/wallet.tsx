@@ -96,83 +96,6 @@ export default function WalletScreen() {
       }));
   }, [filteredVouchers]);
 
-  function renderHeader() {
-    return (
-      <View>
-        <AppHeader subtitle="Your voucher wallet" />
-        <View style={styles.header}>
-          <View style={styles.headerTop}>
-            <Text style={styles.greeting}>My Wallet</Text>
-            <TouchableOpacity
-              style={styles.addButton}
-              onPress={() => router.push('/voucher/add')}
-            >
-              <Text style={styles.addButtonText}>+ Add</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.summaryCard}>
-            <View style={styles.summaryItem}>
-              <Text style={styles.summaryValue}>{formatCurrency(totalValue)}</Text>
-              <Text style={styles.summaryLabel}>Total value</Text>
-            </View>
-            <View style={styles.summaryDivider} />
-            <View style={styles.summaryItem}>
-              <Text style={styles.summaryValue}>{activeVouchers.length}</Text>
-              <Text style={styles.summaryLabel}>Vouchers</Text>
-            </View>
-            <View style={styles.summaryDivider} />
-            <View style={styles.summaryItem}>
-              <Text style={[styles.summaryValue, expiringCount > 0 && { color: colors.warning }]}>
-                {formatCurrency(expiringValue)}
-              </Text>
-              <Text style={[styles.summaryLabel, expiringCount > 0 && { color: colors.warning }]}>
-                Expiring soon ({expiringCount})
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.searchContainer}>
-          <View style={styles.searchBar}>
-            <Text style={styles.searchIcon}>🔍</Text>
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search vouchers..."
-              placeholderTextColor={colors.textMuted}
-              value={search}
-              onChangeText={setSearch}
-            />
-            {search.length > 0 && (
-              <TouchableOpacity onPress={() => setSearch('')}>
-                <Text style={styles.searchClear}>✕</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.filterScroll}
-            contentContainerStyle={styles.filterContent}
-          >
-            {FILTER_CATEGORIES.map((cat) => (
-              <TouchableOpacity
-                key={cat}
-                style={[styles.filterChip, activeCategory === cat && styles.filterChipActive]}
-                onPress={() => setActiveCategory(cat)}
-              >
-                <Text style={[styles.filterChipText, activeCategory === cat && styles.filterChipTextActive]}>
-                  {cat === 'all' ? 'All' : CATEGORY_LABELS[cat as VoucherCategory]}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-      </View>
-    );
-  }
-
   function renderSectionHeader({ section }: { section: { title: string } }) {
     return (
       <View style={styles.sectionHeader}>
@@ -205,10 +128,86 @@ export default function WalletScreen() {
     );
   }
 
+  function renderTopBar() {
+    return (
+      <>
+        <AppHeader subtitle="Your voucher wallet" />
+        <View style={styles.header}>
+          <View style={styles.headerTop}>
+            <Text style={styles.greeting}>My Wallet</Text>
+            <TouchableOpacity
+              style={styles.addButton}
+              onPress={() => router.push('/voucher/add')}
+            >
+              <Text style={styles.addButtonText}>+ Add</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.summaryCard}>
+            <View style={styles.summaryItem}>
+              <Text style={styles.summaryValue}>{formatCurrency(totalValue)}</Text>
+              <Text style={styles.summaryLabel}>Total value</Text>
+            </View>
+            <View style={styles.summaryDivider} />
+            <View style={styles.summaryItem}>
+              <Text style={styles.summaryValue}>{activeVouchers.length}</Text>
+              <Text style={styles.summaryLabel}>Vouchers</Text>
+            </View>
+            <View style={styles.summaryDivider} />
+            <View style={styles.summaryItem}>
+              <Text style={[styles.summaryValue, expiringCount > 0 && { color: colors.warning }]}>
+                {formatCurrency(expiringValue)}
+              </Text>
+              <Text style={[styles.summaryLabel, expiringCount > 0 && { color: colors.warning }]}>
+                Expiring soon ({expiringCount})
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Search + filter chips — OUTSIDE list so TextInput never loses focus */}
+        <View style={styles.searchContainer}>
+          <View style={styles.searchBar}>
+            <Text style={styles.searchIcon}>🔍</Text>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search vouchers..."
+              placeholderTextColor={colors.textMuted}
+              value={search}
+              onChangeText={setSearch}
+            />
+            {search.length > 0 && (
+              <TouchableOpacity onPress={() => setSearch('')}>
+                <Text style={styles.searchClear}>✕</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.filterScroll}
+            contentContainerStyle={styles.filterContent}
+          >
+            {FILTER_CATEGORIES.map((cat) => (
+              <TouchableOpacity
+                key={cat}
+                style={[styles.filterChip, activeCategory === cat && styles.filterChipActive]}
+                onPress={() => setActiveCategory(cat)}
+              >
+                <Text style={[styles.filterChipText, activeCategory === cat && styles.filterChipTextActive]}>
+                  {cat === 'all' ? 'All' : CATEGORY_LABELS[cat as VoucherCategory]}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      </>
+    );
+  }
+
   if (loading && vouchers.length === 0) {
     return (
       <View style={styles.loadingContainer}>
-        {renderHeader()}
+        {renderTopBar()}
         <ActivityIndicator color={colors.accent} size="large" style={{ marginTop: 40 }} />
       </View>
     );
@@ -216,6 +215,7 @@ export default function WalletScreen() {
 
   return (
     <View style={styles.container}>
+      {renderTopBar()}
       <SectionList<Voucher, { title: string; key: string; data: Voucher[] }>
         sections={sections}
         keyExtractor={(v) => v.id}
@@ -226,7 +226,6 @@ export default function WalletScreen() {
           />
         )}
         renderSectionHeader={renderSectionHeader}
-        ListHeaderComponent={renderHeader}
         ListEmptyComponent={renderEmpty}
         contentContainerStyle={sections.length === 0 ? styles.listEmpty : styles.list}
         showsVerticalScrollIndicator={false}
