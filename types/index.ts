@@ -1,4 +1,13 @@
 export type VoucherStatus = 'active' | 'used' | 'expired' | 'sold';
+export type TransactionStatus = 'pending' | 'processing' | 'completed' | 'refunded' | 'disputed' | 'cancelled';
+export type DisputeReason = 'invalid_code' | 'wrong_balance' | 'seller_not_responding' | 'other';
+
+export const DISPUTE_REASON_LABELS: Record<DisputeReason, string> = {
+  invalid_code: 'Code is invalid — tried to redeem, it doesn\'t work',
+  wrong_balance: 'Wrong balance — lower than advertised',
+  seller_not_responding: 'Seller not responding after offer accepted',
+  other: 'Other issue',
+};
 export type ListingType = 'sale' | 'trade' | 'both';
 export type BarcodeFormat = 'QR' | 'CODE128' | 'EAN13' | 'EAN8' | 'CODE39' | 'OTHER';
 export type OfferStatus = 'pending' | 'accepted' | 'rejected' | 'cancelled' | 'completed';
@@ -70,6 +79,32 @@ export interface Offer {
   status: OfferStatus;
   created_at: string;
   updated_at: string;
+}
+
+export interface Transaction {
+  id: string;
+  offer_id: string | null;
+  voucher_id: string;
+  seller_id: string;
+  buyer_id: string;
+  sale_price: number;
+  platform_fee: number;
+  payment_intent_id: string | null;
+  status: TransactionStatus;
+  // Voucher code (base64 encoded — only revealed to buyer after completion)
+  voucher_code_encrypted: string | null;
+  // Dispute fields
+  dispute_reason: DisputeReason | null;
+  dispute_description: string | null;
+  disputed_at: string | null;
+  dispute_response: string | null;
+  dispute_responded_at: string | null;
+  // Timeline
+  seller_confirmed_at: string | null;
+  buyer_confirmed_at: string | null;
+  auto_capture_at: string | null;
+  completed_at: string | null;
+  created_at: string;
 }
 
 export interface AppNotification {

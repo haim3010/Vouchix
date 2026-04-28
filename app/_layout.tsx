@@ -37,6 +37,9 @@ export default function RootLayout() {
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="voucher/[id]" options={{ presentation: 'card' }} />
       <Stack.Screen name="voucher/add" options={{ presentation: 'modal' }} />
+      <Stack.Screen name="offer/make" options={{ presentation: 'modal' }} />
+      <Stack.Screen name="offer/[id]" options={{ presentation: 'card' }} />
+      <Stack.Screen name="dispute/[transactionId]" options={{ presentation: 'modal' }} />
     </Stack>
   );
 }

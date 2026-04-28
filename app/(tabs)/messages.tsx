@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
+import { router } from 'expo-router';
 import { useAuthStore } from '@/lib/stores/authStore';
 import { useMessagesStore, Conversation, ChatMessage } from '@/lib/stores/messagesStore';
 import { useMarketplaceStore } from '@/lib/stores/marketplaceStore';
@@ -422,6 +423,16 @@ export default function MessagesScreen() {
               </TouchableOpacity>
             )}
           </View>
+        )}
+
+        {/* ── PAY NOW button (buyer, accepted offer, no active transaction) ── */}
+        {conv.offer_status === 'accepted' && !conv.is_seller && (
+          <TouchableOpacity
+            style={styles.payNowBtn}
+            onPress={() => router.push(`/offer/make?offerId=${conv.offer_id}`)}
+          >
+            <Text style={styles.payNowBtnText}>💳 Pay Now — Complete the Deal</Text>
+          </TouchableOpacity>
         )}
 
         {/* Divider */}
@@ -872,6 +883,16 @@ const styles = StyleSheet.create({
   },
   sendBtnDisabled: { backgroundColor: colors.gray200 },
   sendBtnText: { color: colors.white, fontSize: fontSizes.lg, fontWeight: '800' },
+
+  // Pay Now button
+  payNowBtn: {
+    backgroundColor: colors.success,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    alignItems: 'center',
+    marginBottom: spacing.sm,
+  },
+  payNowBtnText: { color: colors.white, fontWeight: '800', fontSize: fontSizes.md },
 
   // Closed offer banner
   closedBanner: {
