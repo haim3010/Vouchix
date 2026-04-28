@@ -17,20 +17,8 @@ import { colors, spacing, radius, fontSizes } from '@/lib/constants/theme';
 import { formatCurrency } from '@/lib/utils/currency';
 import AppHeader from '@/components/AppHeader';
 
-type Section = 'used' | 'expired' | 'trade' | null;
-
-const DEAL_STATUS_COLOR: Record<string, string> = {
-  completed:  colors.success,
-  rejected:   colors.error,
-  cancelled:  colors.textMuted,
-  refunded:   colors.warning,
-};
-const DEAL_STATUS_LABEL: Record<string, string> = {
-  completed:  'Completed ✓',
-  rejected:   'Declined',
-  cancelled:  'Cancelled',
-  refunded:   'Refunded',
-};
+type Section = 'completed' | 'cancelled' | 'used' | 'expired' | null;
+type DealFilter = 'all' | 'sales' | 'purchases';
 
 export default function HistoryScreen() {
   const { user } = useAuthStore();
@@ -38,6 +26,7 @@ export default function HistoryScreen() {
   const { conversations, fetchConversations } = useMessagesStore();
 
   const [openSection, setOpenSection] = useState<Section>(null);
+  const [dealFilter, setDealFilter] = useState<DealFilter>('all');
   const [loading, setLoading] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; brand: string } | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -46,10 +35,7 @@ export default function HistoryScreen() {
     if (!user?.id) return;
     setLoading(true);
     try {
-      await Promise.all([
-        fetchVouchers(user.id),
-        fetchConversations(user.id),
-      ]);
+      await Promise.all([fetchVouchers(user.id), fetchConversations(user.id)]);
     } finally {
       setLoading(false);
     }
@@ -58,20 +44,33 @@ export default function HistoryScreen() {
   useEffect(() => { refresh(); }, [refresh]);
   useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
 
-  // Voucher history
+  // ── Voucher buckets ──────────────────────────────────────────────────────────
   const usedVouchers    = vouchers.filter((v) => v.status === 'used');
   const expiredVouchers = vouchers.filter((v) => v.status === 'expired');
   const usedTotal       = usedVouchers.reduce((s, v) => s + v.original_value, 0);
   const expiredTotal    = expiredVouchers.reduce((s, v) => s + v.original_value, 0);
 
-  // Closed deals — only show finished conversations (not active ones)
-  const closedDeals = conversations.filter((c) =>
-    ['completed', 'rejected', 'cancelled', 'refunded'].includes(c.offer_status)
+  // ── Deal buckets ─────────────────────────────────────────────────────────────
+  const completedDeals = conversations.filter((c) => c.offer_status === 'completed');
+  const cancelledDeals = conversations.filter((c) =>
+    ['rejected', 'cancelled', 'refunded'].includes(c.offer_status)
   );
-  const completedDeals = closedDeals.filter((c) => c.offer_status === 'completed');
-  const totalSaved = completedDeals
-    .filter((c) => !c.is_seller)
-    .reduce((s, c) => s + (c.voucher_original_value - c.offer_amount), 0);
+
+  // Completed — sub-filter
+  const completedSales     = completedDeals.filter((c) => c.is_seller);
+  const completedPurchases = completedDeals.filter((c) => !c.is_seller);
+
+  const filteredCompleted =
+    dealFilter === 'sales'     ? completedSales :
+    dealFilter === 'purchases' ? completedPurchases :
+    completedDeals;
+
+  // Totals
+  const salesTotal     = completedSales.reduce((s, c) => s + c.offer_amount, 0);
+  const purchasesTotal = completedPurchases.reduce((s, c) => s + c.offer_amount, 0);
+  const savedTotal     = completedPurchases.reduce(
+    (s, c) => s + Math.max(0, c.voucher_original_value - c.offer_amount), 0
+  );
 
   async function confirmDelete() {
     if (!deleteTarget) return;
@@ -82,8 +81,10 @@ export default function HistoryScreen() {
 
   function toggleSection(s: Section) {
     setOpenSection((prev) => (prev === s ? null : s));
+    if (s === 'completed') setDealFilter('all');
   }
 
+  // ── Accordion header ─────────────────────────────────────────────────────────
   function renderSectionHeader(
     id: Section, emoji: string, label: string, count: number,
     badge?: string, badgeColor?: string,
@@ -110,15 +111,74 @@ export default function HistoryScreen() {
     );
   }
 
+  // ── Deal card ────────────────────────────────────────────────────────────────
+  function renderDealCard(deal: typeof completedDeals[number]) {
+    const isCancelled = ['rejected', 'cancelled', 'refunded'].includes(deal.offer_status);
+    const statusLabel =
+      deal.offer_status === 'completed' ? 'Completed ✓' :
+      deal.offer_status === 'rejected'  ? 'Declined'    :
+      deal.offer_status === 'refunded'  ? 'Refunded'    : 'Cancelled';
+    const statusColor =
+      deal.offer_status === 'completed' ? colors.success :
+      deal.offer_status === 'refunded'  ? colors.warning  :
+      colors.error;
+    const saved = Math.max(0, deal.voucher_original_value - deal.offer_amount);
+
+    return (
+      <View key={deal.offer_id} style={styles.dealCard}>
+        <View style={styles.dealTop}>
+          <View style={styles.dealInfo}>
+            <Text style={styles.dealBrand}>{deal.voucher_brand}</Text>
+            <Text style={styles.dealRole}>
+              {deal.is_seller ? '🏷 מכרת' : '🛒 קנית'} · {deal.other_user_name}
+            </Text>
+          </View>
+          <View style={[styles.dealStatusBadge, { backgroundColor: statusColor + '20' }]}>
+            <Text style={[styles.dealStatusText, { color: statusColor }]}>{statusLabel}</Text>
+          </View>
+        </View>
+
+        <View style={styles.dealPrices}>
+          <View style={styles.dealPriceItem}>
+            <Text style={styles.dealPriceLabel}>
+              {deal.is_seller ? 'קיבלת' : 'שילמת'}
+            </Text>
+            <Text style={[styles.dealPriceValue, { color: deal.is_seller ? colors.success : colors.secondary }]}>
+              {formatCurrency(deal.offer_amount)}
+            </Text>
+          </View>
+          <View style={styles.dealPriceDivider} />
+          <View style={styles.dealPriceItem}>
+            <Text style={styles.dealPriceLabel}>שווי מקורי</Text>
+            <Text style={styles.dealPriceOriginal}>{formatCurrency(deal.voucher_original_value)}</Text>
+          </View>
+          {!deal.is_seller && !isCancelled && saved > 0 && (
+            <>
+              <View style={styles.dealPriceDivider} />
+              <View style={styles.dealPriceItem}>
+                <Text style={styles.dealPriceLabel}>חסכת</Text>
+                <Text style={[styles.dealPriceValue, { color: colors.success }]}>{formatCurrency(saved)}</Text>
+              </View>
+            </>
+          )}
+        </View>
+
+        <Text style={styles.dealDate}>
+          {new Date(deal.updated_at).toLocaleDateString('he-IL', { day: '2-digit', month: 'short', year: 'numeric' })}
+        </Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
-      <AppHeader subtitle="Your voucher & deal history" />
+      <AppHeader subtitle="היסטוריית הווצ'רים והעסקאות שלך" />
       <View style={styles.header}>
-        <Text style={styles.title}>History</Text>
+        <Text style={styles.title}>היסטוריה</Text>
         <Text style={styles.subtitle}>
           {completedDeals.length > 0
-            ? `${completedDeals.length} completed deal${completedDeals.length !== 1 ? 's' : ''}${totalSaved > 0 ? ` · saved ${formatCurrency(totalSaved)}` : ''}`
-            : 'Your closed deals and used vouchers'}
+            ? `${completedDeals.length} עסקאות סגורות${savedTotal > 0 ? ` · חסכת ${formatCurrency(savedTotal)}` : ''}`
+            : 'עסקאות שנסגרו ווצ׳רים בשימוש'}
         </Text>
       </View>
 
@@ -130,87 +190,98 @@ export default function HistoryScreen() {
           contentContainerStyle={styles.content}
           refreshControl={<RefreshControl refreshing={loading} onRefresh={refresh} tintColor={colors.accent} />}
         >
-          {/* ── Completed Deals ── */}
+
+          {/* ══ עסקאות מושלמות ══ */}
           <View style={styles.accordionCard}>
             {renderSectionHeader(
-              'trade', '🤝', 'Completed Deals', closedDeals.length,
-              completedDeals.length > 0 ? `${completedDeals.length} closed` : undefined,
+              'completed', '✅', 'עסקאות מושלמות', completedDeals.length,
+              completedDeals.length > 0 ? `${completedDeals.length}` : undefined,
               colors.success,
             )}
-            {openSection === 'trade' && (
+            {openSection === 'completed' && (
               <View style={styles.accordionBody}>
-                {closedDeals.length === 0 ? (
-                  <EmptyState emoji="🤝" text="No closed deals yet — go to Offers to negotiate!" />
-                ) : (
-                  closedDeals.map((deal) => {
-                    const statusColor = DEAL_STATUS_COLOR[deal.offer_status] ?? colors.textMuted;
-                    const statusLabel = DEAL_STATUS_LABEL[deal.offer_status] ?? deal.offer_status;
-                    const saved = deal.voucher_original_value - deal.offer_amount;
-                    return (
-                      <View key={deal.offer_id} style={styles.dealCard}>
-                        <View style={styles.dealTop}>
-                          <View style={styles.dealInfo}>
-                            <Text style={styles.dealBrand}>{deal.voucher_brand}</Text>
-                            <Text style={styles.dealRole}>
-                              {deal.is_seller ? '🏷 You sold' : '🛒 You bought'} · {deal.other_user_name}
-                            </Text>
-                          </View>
-                          <View style={[styles.dealStatusBadge, { backgroundColor: statusColor + '20' }]}>
-                            <Text style={[styles.dealStatusText, { color: statusColor }]}>{statusLabel}</Text>
-                          </View>
-                        </View>
-                        <View style={styles.dealPrices}>
-                          <View style={styles.dealPriceItem}>
-                            <Text style={styles.dealPriceLabel}>Deal price</Text>
-                            <Text style={[styles.dealPriceValue, { color: colors.secondary }]}>
-                              {formatCurrency(deal.offer_amount)}
-                            </Text>
-                          </View>
-                          <View style={styles.dealPriceDivider} />
-                          <View style={styles.dealPriceItem}>
-                            <Text style={styles.dealPriceLabel}>Face value</Text>
-                            <Text style={styles.dealPriceOriginal}>
-                              {formatCurrency(deal.voucher_original_value)}
-                            </Text>
-                          </View>
-                          {!deal.is_seller && deal.offer_status === 'completed' && saved > 0 && (
-                            <>
-                              <View style={styles.dealPriceDivider} />
-                              <View style={styles.dealPriceItem}>
-                                <Text style={styles.dealPriceLabel}>You saved</Text>
-                                <Text style={[styles.dealPriceValue, { color: colors.success }]}>
-                                  {formatCurrency(saved)}
-                                </Text>
-                              </View>
-                            </>
-                          )}
-                        </View>
-                        <Text style={styles.dealDate}>
-                          {new Date(deal.updated_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+
+                {/* Summary row */}
+                {completedDeals.length > 0 && (
+                  <View style={styles.summaryRow}>
+                    <View style={[styles.summaryBox, { borderColor: colors.success }]}>
+                      <Text style={styles.summaryLabel}>🏷 מכרתי</Text>
+                      <Text style={[styles.summaryAmount, { color: colors.success }]}>
+                        {formatCurrency(salesTotal)}
+                      </Text>
+                      <Text style={styles.summaryCount}>{completedSales.length} עסקאות</Text>
+                    </View>
+                    <View style={[styles.summaryBox, { borderColor: colors.secondary }]}>
+                      <Text style={styles.summaryLabel}>🛒 קניתי</Text>
+                      <Text style={[styles.summaryAmount, { color: colors.secondary }]}>
+                        {formatCurrency(purchasesTotal)}
+                      </Text>
+                      <Text style={styles.summaryCount}>{completedPurchases.length} עסקאות</Text>
+                    </View>
+                  </View>
+                )}
+
+                {/* Filter chips */}
+                {completedDeals.length > 0 && (
+                  <View style={styles.filterRow}>
+                    {(['all', 'sales', 'purchases'] as DealFilter[]).map((f) => (
+                      <TouchableOpacity
+                        key={f}
+                        style={[styles.filterChip, dealFilter === f && styles.filterChipActive]}
+                        onPress={() => setDealFilter(f)}
+                      >
+                        <Text style={[styles.filterChipText, dealFilter === f && styles.filterChipTextActive]}>
+                          {f === 'all' ? 'הכל' : f === 'sales' ? '🏷 מכירות' : '🛒 קניות'}
                         </Text>
-                      </View>
-                    );
-                  })
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+
+                {filteredCompleted.length === 0 ? (
+                  <EmptyState emoji="✅" text="אין עסקאות מושלמות עדיין — לך למשא ומתן בטאב הצעות!" />
+                ) : (
+                  filteredCompleted.map(renderDealCard)
                 )}
               </View>
             )}
           </View>
 
-          {/* ── Used Vouchers ── */}
+          {/* ══ עסקאות מבוטלות ══ */}
           <View style={styles.accordionCard}>
-            {renderSectionHeader('used', '✅', 'Used Vouchers', usedVouchers.length,
-              usedVouchers.length > 0 ? formatCurrency(usedTotal) : undefined, colors.success)}
+            {renderSectionHeader(
+              'cancelled', '❌', 'עסקאות מבוטלות', cancelledDeals.length,
+              cancelledDeals.length > 0 ? `${cancelledDeals.length}` : undefined,
+              colors.error,
+            )}
+            {openSection === 'cancelled' && (
+              <View style={styles.accordionBody}>
+                {cancelledDeals.length === 0 ? (
+                  <EmptyState emoji="👍" text="אין עסקאות מבוטלות" />
+                ) : (
+                  cancelledDeals.map(renderDealCard)
+                )}
+              </View>
+            )}
+          </View>
+
+          {/* ══ ווצ'רים בשימוש ══ */}
+          <View style={styles.accordionCard}>
+            {renderSectionHeader(
+              'used', '🎫', 'ווצ\'רים שנוצלו', usedVouchers.length,
+              usedVouchers.length > 0 ? formatCurrency(usedTotal) : undefined, colors.success,
+            )}
             {openSection === 'used' && (
               <View style={styles.accordionBody}>
                 {usedVouchers.length === 0 ? (
-                  <EmptyState emoji="✅" text="No used vouchers yet" />
+                  <EmptyState emoji="🎫" text="אין ווצ'רים שנוצלו עדיין" />
                 ) : (
                   usedVouchers.map((v) => (
                     <View key={v.id} style={styles.historyItem}>
                       <View style={styles.historyItemLeft}>
                         <Text style={styles.historyBrand}>{v.brand}</Text>
                         <Text style={styles.historyDate}>
-                          {v.updated_at ? new Date(v.updated_at).toLocaleDateString('en-GB') : '—'}
+                          {v.updated_at ? new Date(v.updated_at).toLocaleDateString('he-IL') : '—'}
                         </Text>
                       </View>
                       <View style={styles.historyItemRight}>
@@ -218,7 +289,7 @@ export default function HistoryScreen() {
                           {formatCurrency(v.original_value)}
                         </Text>
                         <View style={[styles.historyBadge, { backgroundColor: colors.success + '20' }]}>
-                          <Text style={[styles.historyBadgeText, { color: colors.success }]}>Used</Text>
+                          <Text style={[styles.historyBadgeText, { color: colors.success }]}>נוצל</Text>
                         </View>
                         <TouchableOpacity
                           onPress={() => setDeleteTarget({ id: v.id, brand: v.brand })}
@@ -234,21 +305,23 @@ export default function HistoryScreen() {
             )}
           </View>
 
-          {/* ── Expired Vouchers ── */}
+          {/* ══ ווצ'רים פגי תוקף ══ */}
           <View style={styles.accordionCard}>
-            {renderSectionHeader('expired', '⏰', 'Expired Vouchers', expiredVouchers.length,
-              expiredVouchers.length > 0 ? formatCurrency(expiredTotal) + ' lost' : undefined, colors.error)}
+            {renderSectionHeader(
+              'expired', '⏰', 'ווצ\'רים פגי תוקף', expiredVouchers.length,
+              expiredVouchers.length > 0 ? formatCurrency(expiredTotal) + ' אבד' : undefined, colors.error,
+            )}
             {openSection === 'expired' && (
               <View style={styles.accordionBody}>
                 {expiredVouchers.length === 0 ? (
-                  <EmptyState emoji="🎉" text="No expired vouchers — great job!" />
+                  <EmptyState emoji="🎉" text="אין ווצ'רים פגי תוקף — כל הכבוד!" />
                 ) : (
                   expiredVouchers.map((v) => (
                     <View key={v.id} style={styles.historyItem}>
                       <View style={styles.historyItemLeft}>
                         <Text style={styles.historyBrand}>{v.brand}</Text>
                         <Text style={styles.historyDate}>
-                          Expired {v.expires_at ? new Date(v.expires_at).toLocaleDateString('en-GB') : '—'}
+                          פג תוקף {v.expires_at ? new Date(v.expires_at).toLocaleDateString('he-IL') : '—'}
                         </Text>
                       </View>
                       <View style={styles.historyItemRight}>
@@ -256,7 +329,7 @@ export default function HistoryScreen() {
                           {formatCurrency(v.original_value)}
                         </Text>
                         <View style={[styles.historyBadge, { backgroundColor: colors.error + '20' }]}>
-                          <Text style={[styles.historyBadgeText, { color: colors.error }]}>Expired</Text>
+                          <Text style={[styles.historyBadgeText, { color: colors.error }]}>פג</Text>
                         </View>
                         <TouchableOpacity
                           onPress={() => setDeleteTarget({ id: v.id, brand: v.brand })}
@@ -271,16 +344,17 @@ export default function HistoryScreen() {
               </View>
             )}
           </View>
+
         </ScrollView>
       )}
 
-      {/* Delete confirmation modal */}
+      {/* Delete confirmation */}
       <Modal visible={!!deleteTarget} transparent animationType="fade">
         <View style={styles.confirmOverlay}>
           <View style={styles.confirmBox}>
-            <Text style={styles.confirmTitle}>Remove from History?</Text>
+            <Text style={styles.confirmTitle}>הסרה מהיסטוריה?</Text>
             <Text style={styles.confirmSub}>
-              Permanently delete "{deleteTarget?.brand}" from your history. This cannot be undone.
+              מחיקה סופית של "{deleteTarget?.brand}" מההיסטוריה שלך. לא ניתן לשחזר.
             </Text>
             <View style={styles.confirmBtns}>
               <TouchableOpacity
@@ -288,7 +362,7 @@ export default function HistoryScreen() {
                 onPress={() => setDeleteTarget(null)}
                 disabled={deleteLoading}
               >
-                <Text style={styles.confirmCancelText}>Cancel</Text>
+                <Text style={styles.confirmCancelText}>ביטול</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.confirmAction, { backgroundColor: colors.error }]}
@@ -296,7 +370,7 @@ export default function HistoryScreen() {
                 disabled={deleteLoading}
               >
                 <Text style={styles.confirmActionText}>
-                  {deleteLoading ? 'Deleting…' : 'Delete'}
+                  {deleteLoading ? 'מוחק…' : 'מחק'}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -330,6 +404,7 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   content: { padding: spacing.md, paddingBottom: 48, gap: spacing.md },
 
+  // ── Accordion ──
   accordionCard: {
     backgroundColor: colors.cardBg,
     borderRadius: radius.lg,
@@ -351,14 +426,52 @@ const styles = StyleSheet.create({
   accordionRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   accordionBadge: { paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: radius.pill },
   accordionBadgeText: { fontSize: fontSizes.xs, fontWeight: '700' },
-  accordionChevron: { fontSize: fontSizes.xxl, color: colors.gray400, transform: [{ rotate: '0deg' }] },
+  accordionChevron: { fontSize: fontSizes.xxl, color: colors.gray400 },
   accordionChevronOpen: { transform: [{ rotate: '90deg' }] },
   accordionBody: {
     borderTopWidth: 1, borderTopColor: colors.border,
     padding: spacing.md, gap: spacing.sm,
   },
 
-  // Completed deal cards
+  // ── Summary boxes (sales vs purchases totals) ──
+  summaryRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  summaryBox: {
+    flex: 1,
+    borderWidth: 1.5,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    alignItems: 'center',
+    gap: 2,
+    backgroundColor: colors.bgLight,
+  },
+  summaryLabel: { fontSize: fontSizes.sm, fontWeight: '700', color: colors.text },
+  summaryAmount: { fontSize: fontSizes.xl, fontWeight: '800' },
+  summaryCount: { fontSize: fontSizes.xs, color: colors.textMuted },
+
+  // ── Filter chips ──
+  filterRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  filterChip: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.pill,
+    paddingVertical: spacing.xs,
+    alignItems: 'center',
+    backgroundColor: colors.bgLight,
+  },
+  filterChipActive: { borderColor: colors.accent, backgroundColor: colors.accent + '15' },
+  filterChipText: { fontSize: fontSizes.xs, color: colors.textMuted, fontWeight: '600' },
+  filterChipTextActive: { color: colors.accent, fontWeight: '800' },
+
+  // ── Deal cards ──
   dealCard: {
     backgroundColor: colors.bgLight,
     borderRadius: radius.md,
@@ -381,7 +494,7 @@ const styles = StyleSheet.create({
   dealPriceDivider: { width: 1, height: 32, backgroundColor: colors.border },
   dealDate: { fontSize: fontSizes.xs, color: colors.textMuted },
 
-  // History items
+  // ── Voucher history items ──
   historyItem: {
     flexDirection: 'row', alignItems: 'center',
     justifyContent: 'space-between',
@@ -397,16 +510,27 @@ const styles = StyleSheet.create({
   historyBadgeText: { fontSize: fontSizes.xs, fontWeight: '700' },
   historyDeleteBtn: { fontSize: 14, marginTop: 2 },
 
+  // ── Empty state ──
   empty: { alignItems: 'center', paddingVertical: spacing.lg },
   emptyEmoji: { fontSize: 40, marginBottom: spacing.sm },
   emptyTitle: { fontSize: fontSizes.md, color: colors.textMuted, textAlign: 'center' },
 
-  confirmOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center', padding: spacing.lg },
-  confirmBox: { backgroundColor: colors.cardBg, borderRadius: radius.lg, padding: spacing.lg, width: '100%', maxWidth: 320 },
+  // ── Confirm modal ──
+  confirmOverlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.55)',
+    alignItems: 'center', justifyContent: 'center', padding: spacing.lg,
+  },
+  confirmBox: {
+    backgroundColor: colors.cardBg, borderRadius: radius.lg,
+    padding: spacing.lg, width: '100%', maxWidth: 320,
+  },
   confirmTitle: { fontSize: fontSizes.lg, fontWeight: '800', color: colors.text, marginBottom: spacing.xs },
   confirmSub: { fontSize: fontSizes.sm, color: colors.textMuted, marginBottom: spacing.lg, lineHeight: 20 },
   confirmBtns: { flexDirection: 'row', gap: spacing.sm },
-  confirmCancel: { flex: 1, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, alignItems: 'center' },
+  confirmCancel: {
+    flex: 1, padding: spacing.md, borderRadius: radius.md,
+    borderWidth: 1, borderColor: colors.border, alignItems: 'center',
+  },
   confirmCancelText: { color: colors.textMuted, fontWeight: '600' },
   confirmAction: { flex: 1, padding: spacing.md, borderRadius: radius.md, alignItems: 'center' },
   confirmActionText: { color: colors.white, fontWeight: '700' },
