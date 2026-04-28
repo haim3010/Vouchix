@@ -43,15 +43,17 @@ export default function MessagesScreen() {
     conversations, currentMessages, currentConversation,
     loadingConversations, loadingMessages, sending,
     fetchConversations, openConversation, closeConversation,
-    sendMessage, subscribeToMessages, updateConversationStatus,
+    sendMessage, subscribeToMessages, updateConversationStatus, updateConversationAmount,
   } = useMessagesStore();
-  const { completeOffer, cancelOffer } = useMarketplaceStore();
+  const { completeOffer, cancelOffer, counterOffer } = useMarketplaceStore();
 
   const [draft, setDraft] = useState('');
   const [sendError, setSendError] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState('');
   const [profileUserId, setProfileUserId] = useState<string | null>(null);
+  const [showCounterInput, setShowCounterInput] = useState(false);
+  const [counterAmount, setCounterAmount] = useState('');
 
   const flatListRef = useRef<FlatList<ChatMessage>>(null);
   const unsubRef = useRef<(() => void) | null>(null);
@@ -119,6 +121,33 @@ export default function MessagesScreen() {
     }
   }
 
+  async function handleCounter() {
+    if (!currentConversation) return;
+    const amount = parseFloat(counterAmount.replace(/[^0-9.]/g, ''));
+    if (isNaN(amount) || amount <= 0) {
+      setActionError('Please enter a valid amount.');
+      return;
+    }
+    setActionError('');
+    setActionLoading(true);
+    try {
+      await counterOffer(currentConversation.offer_id, amount);
+      updateConversationAmount(currentConversation.offer_id, amount);
+      // Send a chat message so the seller sees the updated price
+      await sendMessage(
+        currentConversation.offer_id,
+        user!.id,
+        `💰 Counter offer: ${formatCurrency(amount)} (updated from ${formatCurrency(currentConversation.offer_amount)})`
+      );
+      setShowCounterInput(false);
+      setCounterAmount('');
+    } catch {
+      setActionError('Failed to send counter offer. Try again.');
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
   function handleClose() {
     unsubRef.current?.();
     unsubRef.current = null;
@@ -126,6 +155,8 @@ export default function MessagesScreen() {
     setDraft('');
     setSendError('');
     setActionError('');
+    setShowCounterInput(false);
+    setCounterAmount('');
   }
 
   // ── Split conversations by role ──────────────────────────────────────────
@@ -225,8 +256,12 @@ export default function MessagesScreen() {
   // ── Offer summary banner at top of chat ───────────────────────────────────
   function renderChatHeader(conv: Conversation) {
     const statusColor = STATUS_COLOR[conv.offer_status] ?? colors.textMuted;
-    const canComplete = conv.offer_status === 'accepted';
+    // Only the SELLER can complete (they hand over the voucher)
+    const canComplete = conv.offer_status === 'accepted' && conv.is_seller;
+    // Only the BUYER can counter-offer or cancel on a pending offer
+    const canCounter  = conv.offer_status === 'pending' && !conv.is_seller;
     const canCancel   = conv.offer_status === 'pending' && !conv.is_seller;
+    const showActions = canComplete || canCounter || canCancel;
 
     return (
       <View>
@@ -256,9 +291,43 @@ export default function MessagesScreen() {
           </View>
         )}
 
-        {/* Offer actions */}
-        {(canComplete || canCancel) && (
+        {/* ── Counter-offer input (buyer) ── */}
+        {showCounterInput && canCounter && (
+          <View style={styles.counterInputWrap}>
+            <Text style={styles.counterInputLabel}>Your new offer amount</Text>
+            <View style={styles.counterInputRow}>
+              <TextInput
+                style={styles.counterInput}
+                placeholder={`e.g. ${conv.offer_amount}`}
+                placeholderTextColor={colors.textMuted}
+                keyboardType="decimal-pad"
+                value={counterAmount}
+                onChangeText={setCounterAmount}
+                autoFocus
+              />
+              <TouchableOpacity
+                style={[styles.counterSendBtn, (!counterAmount.trim() || actionLoading) && styles.sendBtnDisabled]}
+                onPress={handleCounter}
+                disabled={!counterAmount.trim() || actionLoading}
+              >
+                {actionLoading
+                  ? <ActivityIndicator color={colors.white} size="small" />
+                  : <Text style={styles.counterSendBtnText}>Send</Text>}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.counterCancelBtn}
+                onPress={() => { setShowCounterInput(false); setCounterAmount(''); setActionError(''); }}
+              >
+                <Text style={styles.counterCancelBtnText}>Back</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* ── Offer actions ── */}
+        {showActions && !showCounterInput && (
           <View style={styles.offerActions}>
+            {/* SELLER: complete */}
             {canComplete && (
               <TouchableOpacity
                 style={[styles.actionBtn, styles.actionBtnComplete]}
@@ -270,6 +339,20 @@ export default function MessagesScreen() {
                   : <Text style={styles.actionBtnText}>✓ Mark as Completed</Text>}
               </TouchableOpacity>
             )}
+            {/* BUYER: counter + cancel */}
+            {canCounter && (
+              <TouchableOpacity
+                style={[styles.actionBtn, styles.actionBtnCounter]}
+                onPress={() => {
+                  setCounterAmount(String(conv.offer_amount));
+                  setShowCounterInput(true);
+                  setActionError('');
+                }}
+                disabled={actionLoading}
+              >
+                <Text style={styles.actionBtnText}>↩ Counter Offer</Text>
+              </TouchableOpacity>
+            )}
             {canCancel && (
               <TouchableOpacity
                 style={[styles.actionBtn, styles.actionBtnCancel]}
@@ -278,7 +361,7 @@ export default function MessagesScreen() {
               >
                 {actionLoading
                   ? <ActivityIndicator color={colors.error} size="small" />
-                  : <Text style={[styles.actionBtnText, { color: colors.error }]}>✕ Cancel Offer</Text>}
+                  : <Text style={[styles.actionBtnText, { color: colors.error }]}>✕ Cancel</Text>}
               </TouchableOpacity>
             )}
           </View>
@@ -601,7 +684,49 @@ const styles = StyleSheet.create({
   },
   actionBtnComplete: { backgroundColor: colors.success, borderColor: colors.success },
   actionBtnCancel: { backgroundColor: colors.cardBg, borderColor: colors.error },
+  actionBtnCounter: { backgroundColor: colors.secondary, borderColor: colors.secondary },
   actionBtnText: { color: colors.white, fontWeight: '700', fontSize: fontSizes.sm },
+
+  // Counter-offer input
+  counterInputWrap: {
+    backgroundColor: colors.bgLight,
+    borderWidth: 1,
+    borderColor: colors.secondary,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    gap: spacing.sm,
+  },
+  counterInputLabel: { fontSize: fontSizes.xs, fontWeight: '700', color: colors.secondary },
+  counterInputRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  counterInput: {
+    flex: 1,
+    height: 44,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    fontSize: fontSizes.md,
+    color: colors.text,
+    backgroundColor: colors.cardBg,
+  },
+  counterSendBtn: {
+    backgroundColor: colors.secondary,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  counterSendBtnText: { color: colors.white, fontWeight: '700', fontSize: fontSizes.sm },
+  counterCancelBtn: {
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.sm,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  counterCancelBtnText: { color: colors.textMuted, fontWeight: '600', fontSize: fontSizes.sm },
 
   // Divider
   chatDivider: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.md },

@@ -49,6 +49,7 @@ interface MarketplaceState {
   respondToOffer: (offerId: string, status: 'accepted' | 'rejected') => Promise<void>;
   completeOffer: (offerId: string) => Promise<void>;
   cancelOffer: (offerId: string) => Promise<void>;
+  counterOffer: (offerId: string, newAmount: number) => Promise<void>;
   setBrandFilter: (brand: string | null) => void;
   setSortBy: (sort: MarketplaceState['sortBy']) => void;
 }
@@ -188,6 +189,19 @@ export const useMarketplaceStore = create<MarketplaceState>((set, get) => ({
       .eq('id', offerId);
     if (error) throw new Error(extractMsg(error, 'Failed to cancel offer'));
     const patch = (o: OfferWithBuyer) => o.id === offerId ? { ...o, status: 'cancelled' } : o;
+    set((state) => ({
+      myOffers: state.myOffers.map(patch),
+      incomingOffers: state.incomingOffers.map(patch),
+    }));
+  },
+
+  counterOffer: async (offerId: string, newAmount: number) => {
+    const { error } = await supabase
+      .from('offers')
+      .update({ offer_amount: newAmount, updated_at: new Date().toISOString() })
+      .eq('id', offerId);
+    if (error) throw new Error(extractMsg(error, 'Failed to update offer amount'));
+    const patch = (o: OfferWithBuyer) => o.id === offerId ? { ...o, offer_amount: newAmount } : o;
     set((state) => ({
       myOffers: state.myOffers.map(patch),
       incomingOffers: state.incomingOffers.map(patch),

@@ -41,6 +41,7 @@ interface MessagesState {
   sendMessage: (offerId: string, senderId: string, content: string) => Promise<void>;
   appendMessage: (msg: ChatMessage) => void;
   updateConversationStatus: (offerId: string, status: string) => void;
+  updateConversationAmount: (offerId: string, amount: number) => void;
   subscribeToMessages: (offerId: string) => () => void;
 }
 
@@ -241,6 +242,18 @@ export const useMessagesStore = create<MessagesState>((set, get) => ({
       currentConversation:
         state.currentConversation?.offer_id === offerId
           ? { ...state.currentConversation, offer_status: status }
+          : state.currentConversation,
+    }));
+  },
+
+  updateConversationAmount: (offerId: string, amount: number) => {
+    set((state) => ({
+      conversations: state.conversations.map((c) =>
+        c.offer_id === offerId ? { ...c, offer_amount: amount } : c
+      ),
+      currentConversation:
+        state.currentConversation?.offer_id === offerId
+          ? { ...state.currentConversation, offer_amount: amount }
           : state.currentConversation,
     }));
   },
