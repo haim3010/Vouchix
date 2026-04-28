@@ -56,6 +56,7 @@ export default function MessagesScreen() {
   const [profileUserId, setProfileUserId] = useState<string | null>(null);
   const [showCounterInput, setShowCounterInput] = useState(false);
   const [counterAmount, setCounterAmount] = useState('');
+  const [counterRole, setCounterRole] = useState<'buyer' | 'seller'>('buyer');
   const [showCompleteConfirm, setShowCompleteConfirm] = useState(false);
 
   const flatListRef = useRef<FlatList<ChatMessage>>(null);
@@ -183,12 +184,11 @@ export default function MessagesScreen() {
     try {
       await counterOffer(currentConversation.offer_id, amount);
       updateConversationAmount(currentConversation.offer_id, amount);
-      // Send a chat message so the seller sees the updated price
-      await sendMessage(
-        currentConversation.offer_id,
-        user!.id,
-        `💰 Counter offer: ${formatCurrency(amount)} (updated from ${formatCurrency(currentConversation.offer_amount)})`
-      );
+      const prevAmount = formatCurrency(currentConversation.offer_amount);
+      const label = counterRole === 'seller'
+        ? `💰 Counter from seller: I'd accept ${formatCurrency(amount)} (was ${prevAmount})`
+        : `💰 Counter offer: ${formatCurrency(amount)} (updated from ${prevAmount})`;
+      await sendMessage(currentConversation.offer_id, user!.id, label);
       setShowCounterInput(false);
       setCounterAmount('');
     } catch {
@@ -207,6 +207,7 @@ export default function MessagesScreen() {
     setActionError('');
     setShowCounterInput(false);
     setCounterAmount('');
+    setCounterRole('buyer');
     setShowCompleteConfirm(false);
   }
 
@@ -307,15 +308,13 @@ export default function MessagesScreen() {
   // ── Offer summary banner at top of chat ───────────────────────────────────
   function renderChatHeader(conv: Conversation) {
     const statusColor = STATUS_COLOR[conv.offer_status] ?? colors.textMuted;
-    // SELLER: accept or reject a pending offer
-    const canAccept   = conv.offer_status === 'pending' && conv.is_seller;
-    const canReject   = conv.offer_status === 'pending' && conv.is_seller;
-    // SELLER: mark as completed once accepted
-    const canComplete = conv.offer_status === 'accepted' && conv.is_seller;
-    // BUYER: counter-offer or cancel on a pending offer
-    const canCounter  = conv.offer_status === 'pending' && !conv.is_seller;
-    const canCancel   = conv.offer_status === 'pending' && !conv.is_seller;
-    const showActions = canAccept || canComplete || canCounter || canCancel;
+    const isPending   = conv.offer_status === 'pending';
+    const isAccepted  = conv.offer_status === 'accepted';
+    // What each role can do while pending
+    const sellerCanAct  = isPending && conv.is_seller;   // accept, counter, decline
+    const buyerCanAct   = isPending && !conv.is_seller;  // counter, cancel
+    const canComplete   = isAccepted && conv.is_seller;
+    const showActions   = sellerCanAct || buyerCanAct || canComplete;
 
     return (
       <View>
@@ -356,10 +355,12 @@ export default function MessagesScreen() {
           </View>
         )}
 
-        {/* ── Counter-offer input (buyer) ── */}
-        {showCounterInput && canCounter && (
+        {/* ── Counter-offer input (buyer OR seller) ── */}
+        {showCounterInput && (
           <View style={styles.counterInputWrap}>
-            <Text style={styles.counterInputLabel}>Your new offer amount</Text>
+            <Text style={styles.counterInputLabel}>
+              {counterRole === 'seller' ? '↩ Your counter price' : '↩ Your new offer amount'}
+            </Text>
             <View style={styles.counterInputRow}>
               <TextInput
                 style={styles.counterInput}
@@ -429,44 +430,55 @@ export default function MessagesScreen() {
         {/* ── Offer actions ── */}
         {showActions && !showCounterInput && !showCompleteConfirm && (
           <View>
-            {/* SELLER: accept or reject a pending offer */}
-            {(canAccept || canReject) && (
+            {/* ── SELLER: pending offer ── */}
+            {sellerCanAct && (
               <View style={styles.sellerPendingBanner}>
                 <Text style={styles.sellerPendingTitle}>📨 New offer received</Text>
                 <Text style={styles.sellerPendingSubtitle}>
-                  {conv.other_user_name} offered {formatCurrency(conv.offer_amount)} for your {conv.voucher_brand} voucher
-                  {conv.trade_brand ? ` + 🔄 ${conv.trade_brand} (${formatCurrency(conv.trade_value ?? 0)})` : ''}.
-                  Chat first, then accept or decline.
+                  <Text style={{ fontWeight: '700' }}>{conv.other_user_name}</Text> offered{' '}
+                  <Text style={{ fontWeight: '700', color: colors.success }}>{formatCurrency(conv.offer_amount)}</Text>
+                  {conv.trade_brand ? ` + 🔄 ${conv.trade_brand}` : ''} for your{' '}
+                  <Text style={{ fontWeight: '700' }}>{conv.voucher_brand}</Text> voucher.{'\n'}
+                  Chat to negotiate, then close the deal below.
                 </Text>
                 <View style={styles.offerActions}>
-                  {canAccept && (
-                    <TouchableOpacity
-                      style={[styles.actionBtn, styles.actionBtnComplete, { flex: 1.3 }]}
-                      onPress={handleAccept}
-                      disabled={actionLoading}
-                    >
-                      {actionLoading
-                        ? <ActivityIndicator color={colors.white} size="small" />
-                        : <Text style={styles.actionBtnText}>✓ Accept Offer</Text>}
-                    </TouchableOpacity>
-                  )}
-                  {canReject && (
-                    <TouchableOpacity
-                      style={[styles.actionBtn, styles.actionBtnCancel, { flex: 0.8 }]}
-                      onPress={handleReject}
-                      disabled={actionLoading}
-                    >
-                      <Text style={[styles.actionBtnText, { color: colors.error }]}>✕ Decline</Text>
-                    </TouchableOpacity>
-                  )}
+                  <TouchableOpacity
+                    style={[styles.actionBtn, styles.actionBtnComplete, { flex: 1.2 }]}
+                    onPress={handleAccept}
+                    disabled={actionLoading}
+                  >
+                    {actionLoading
+                      ? <ActivityIndicator color={colors.white} size="small" />
+                      : <Text style={styles.actionBtnText}>✓ Accept</Text>}
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.actionBtn, styles.actionBtnCounter, { flex: 1.2 }]}
+                    onPress={() => {
+                      setCounterRole('seller');
+                      setCounterAmount(String(conv.offer_amount));
+                      setShowCounterInput(true);
+                      setActionError('');
+                    }}
+                    disabled={actionLoading}
+                  >
+                    <Text style={styles.actionBtnText}>↩ Counter</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.actionBtn, styles.actionBtnCancel, { flex: 0.8 }]}
+                    onPress={handleReject}
+                    disabled={actionLoading}
+                  >
+                    <Text style={[styles.actionBtnText, { color: colors.error }]}>✕</Text>
+                  </TouchableOpacity>
                 </View>
               </View>
             )}
-            {/* SELLER: mark as completed once accepted */}
+
+            {/* ── SELLER: accepted — mark complete ── */}
             {canComplete && (
               <View style={styles.offerActions}>
                 <TouchableOpacity
-                  style={[styles.actionBtn, styles.actionBtnComplete]}
+                  style={[styles.actionBtn, styles.actionBtnComplete, { flex: 1 }]}
                   onPress={() => { setActionError(''); setShowCompleteConfirm(true); }}
                   disabled={actionLoading}
                 >
@@ -474,33 +486,31 @@ export default function MessagesScreen() {
                 </TouchableOpacity>
               </View>
             )}
-            {/* BUYER: counter + cancel */}
-            {(canCounter || canCancel) && (
+
+            {/* ── BUYER: pending ── */}
+            {buyerCanAct && (
               <View style={styles.offerActions}>
-                {canCounter && (
-                  <TouchableOpacity
-                    style={[styles.actionBtn, styles.actionBtnCounter]}
-                    onPress={() => {
-                      setCounterAmount(String(conv.offer_amount));
-                      setShowCounterInput(true);
-                      setActionError('');
-                    }}
-                    disabled={actionLoading}
-                  >
-                    <Text style={styles.actionBtnText}>↩ Counter Offer</Text>
-                  </TouchableOpacity>
-                )}
-                {canCancel && (
-                  <TouchableOpacity
-                    style={[styles.actionBtn, styles.actionBtnCancel]}
-                    onPress={handleCancel}
-                    disabled={actionLoading}
-                  >
-                    {actionLoading
-                      ? <ActivityIndicator color={colors.error} size="small" />
-                      : <Text style={[styles.actionBtnText, { color: colors.error }]}>✕ Cancel</Text>}
-                  </TouchableOpacity>
-                )}
+                <TouchableOpacity
+                  style={[styles.actionBtn, styles.actionBtnCounter, { flex: 1.3 }]}
+                  onPress={() => {
+                    setCounterRole('buyer');
+                    setCounterAmount(String(conv.offer_amount));
+                    setShowCounterInput(true);
+                    setActionError('');
+                  }}
+                  disabled={actionLoading}
+                >
+                  <Text style={styles.actionBtnText}>↩ Update My Offer</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.actionBtn, styles.actionBtnCancel, { flex: 0.9 }]}
+                  onPress={handleCancel}
+                  disabled={actionLoading}
+                >
+                  {actionLoading
+                    ? <ActivityIndicator color={colors.error} size="small" />
+                    : <Text style={[styles.actionBtnText, { color: colors.error }]}>✕ Cancel</Text>}
+                </TouchableOpacity>
               </View>
             )}
           </View>

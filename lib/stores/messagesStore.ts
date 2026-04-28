@@ -48,6 +48,14 @@ interface MessagesState {
   subscribeToOffers: (userId: string) => () => void;
 }
 
+// Parse trade info that was encoded into the offer message as a prefix
+function parseTradeFromMessage(msg: string | null): { trade_brand: string | null; trade_value: number | null } {
+  if (!msg) return { trade_brand: null, trade_value: null };
+  const match = msg.match(/🔄 Trade: (.+?) \(₪([\d.]+) value\)/);
+  if (match) return { trade_brand: match[1], trade_value: parseFloat(match[2]) };
+  return { trade_brand: null, trade_value: null };
+}
+
 export const useMessagesStore = create<MessagesState>((set, get) => ({
   conversations: [],
   currentMessages: [],
@@ -59,12 +67,11 @@ export const useMessagesStore = create<MessagesState>((set, get) => ({
   fetchConversations: async (userId: string) => {
     set({ loadingConversations: true });
     try {
-      // Offers I made as buyer
-      const { data: buyerOffers } = await supabase
+      // Offers I made as buyer — only select columns that always exist
+      const { data: buyerOffers, error: buyerErr } = await supabase
         .from('offers')
         .select(`
           id, status, offer_amount, message, updated_at, voucher_id,
-          trade_brand, trade_value,
           voucher:vouchers!offers_voucher_id_fkey(
             id, brand, original_value, owner_id,
             seller:profiles!vouchers_owner_id_fkey(id, display_name)
@@ -73,18 +80,21 @@ export const useMessagesStore = create<MessagesState>((set, get) => ({
         .eq('buyer_id', userId)
         .order('updated_at', { ascending: false });
 
-      // Also get seller offers by checking voucher ownership
-      const { data: myVouchersOffers } = await supabase
+      if (buyerErr) console.warn('fetchConversations buyerOffers error', buyerErr.message);
+
+      // Seller side — query vouchers I own and their offers
+      const { data: myVouchersOffers, error: sellerErr } = await supabase
         .from('vouchers')
         .select(`
           id, brand, original_value, owner_id,
           offers(
             id, status, offer_amount, message, updated_at, buyer_id,
-            trade_brand, trade_value,
             buyer:profiles!offers_buyer_id_fkey(id, display_name)
           )
         `)
         .eq('owner_id', userId);
+
+      if (sellerErr) console.warn('fetchConversations sellerOffers error', sellerErr.message);
 
       const convMap = new Map<string, Conversation>();
 
@@ -93,13 +103,14 @@ export const useMessagesStore = create<MessagesState>((set, get) => ({
         const voucher = o.voucher as Record<string, unknown> | null;
         if (!voucher) continue;
         const seller = voucher.seller as Record<string, unknown> | null;
+        const { trade_brand, trade_value } = parseTradeFromMessage(o.message as string | null);
         convMap.set(o.id as string, {
           offer_id: o.id as string,
           offer_status: o.status as string,
           offer_amount: o.offer_amount as number,
           offer_message: o.message as string | null,
-          trade_brand: o.trade_brand as string | null,
-          trade_value: o.trade_value as number | null,
+          trade_brand,
+          trade_value,
           voucher_id: voucher.id as string,
           voucher_brand: voucher.brand as string,
           voucher_original_value: voucher.original_value as number,
@@ -117,13 +128,14 @@ export const useMessagesStore = create<MessagesState>((set, get) => ({
         for (const o of offers) {
           if (convMap.has(o.id as string)) continue; // already added
           const buyer = o.buyer as Record<string, unknown> | null;
+          const { trade_brand, trade_value } = parseTradeFromMessage(o.message as string | null);
           convMap.set(o.id as string, {
             offer_id: o.id as string,
             offer_status: o.status as string,
             offer_amount: o.offer_amount as number,
             offer_message: o.message as string | null,
-            trade_brand: o.trade_brand as string | null,
-            trade_value: o.trade_value as number | null,
+            trade_brand,
+            trade_value,
             voucher_id: v.id as string,
             voucher_brand: v.brand as string,
             voucher_original_value: v.original_value as number,
