@@ -538,11 +538,11 @@ export default function MessagesScreen() {
 
   return (
     <View style={styles.container}>
-      <AppHeader subtitle="Your conversations" />
+      <AppHeader subtitle="Negotiate, chat, close deals here" />
       <View style={styles.pageHeader}>
-        <Text style={styles.pageTitle}>Messages</Text>
+        <Text style={styles.pageTitle}>Offers</Text>
         <Text style={styles.pageSubtitle}>
-          {conversations.length} conversation{conversations.length !== 1 ? 's' : ''}
+          {conversations.length} active deal{conversations.length !== 1 ? 's' : ''}
         </Text>
       </View>
 
@@ -552,10 +552,10 @@ export default function MessagesScreen() {
         </View>
       ) : conversations.length === 0 ? (
         <View style={styles.empty}>
-          <Text style={styles.emptyEmoji}>💬</Text>
-          <Text style={styles.emptyTitle}>No conversations yet</Text>
+          <Text style={styles.emptyEmoji}>🤝</Text>
+          <Text style={styles.emptyTitle}>No active offers</Text>
           <Text style={styles.emptySubtitle}>
-            When you make or receive an offer, the conversation will appear here.
+            Make an offer on the Market, or list a voucher to receive offers here.
           </Text>
         </View>
       ) : (

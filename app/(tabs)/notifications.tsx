@@ -10,110 +10,74 @@ import {
 } from 'react-native';
 import { useEffect, useState, useCallback } from 'react';
 import { useFocusEffect } from 'expo-router';
-import { useMarketplaceStore, OfferWithBuyer } from '@/lib/stores/marketplaceStore';
 import { useAuthStore } from '@/lib/stores/authStore';
 import { useWalletStore } from '@/lib/stores/walletStore';
+import { useMessagesStore } from '@/lib/stores/messagesStore';
 import { colors, spacing, radius, fontSizes } from '@/lib/constants/theme';
 import { formatCurrency } from '@/lib/utils/currency';
 import AppHeader from '@/components/AppHeader';
 
-type Section = 'used' | 'expired' | 'trade' | 'offers' | null;
-type TradeFilter = 'all' | 'sales' | 'purchases';
+type Section = 'used' | 'expired' | 'trade' | null;
 
-const STATUS_COLORS: Record<string, string> = {
-  pending:   colors.warning,
-  accepted:  colors.success,
-  rejected:  colors.error,
-  cancelled: colors.textMuted,
-  completed: colors.secondary,
+const DEAL_STATUS_COLOR: Record<string, string> = {
+  completed:  colors.success,
+  rejected:   colors.error,
+  cancelled:  colors.textMuted,
+  refunded:   colors.warning,
+};
+const DEAL_STATUS_LABEL: Record<string, string> = {
+  completed:  'Completed ✓',
+  rejected:   'Declined',
+  cancelled:  'Cancelled',
+  refunded:   'Refunded',
 };
 
-const STATUS_LABEL: Record<string, string> = {
-  pending:   'Pending',
-  accepted:  'Accepted ✓',
-  rejected:  'Rejected',
-  cancelled: 'Cancelled',
-  completed: 'Completed ✓',
-};
-
-export default function NotificationsScreen() {
+export default function HistoryScreen() {
   const { user } = useAuthStore();
   const { vouchers, fetchVouchers, deleteVoucher } = useWalletStore();
-  const {
-    myOffers, incomingOffers,
-    fetchMyOffers, fetchIncomingOffers, respondToOffer, fetchListings,
-  } = useMarketplaceStore();
+  const { conversations, fetchConversations } = useMessagesStore();
 
   const [openSection, setOpenSection] = useState<Section>(null);
-  const [tradeFilter, setTradeFilter] = useState<TradeFilter>('all');
   const [loading, setLoading] = useState(false);
-  const [respondingId, setRespondingId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; brand: string } | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
-  // Accept/Reject confirmation modal (replaces Alert.alert which doesn't work)
-  const [respondTarget, setRespondTarget] = useState<{ offer: OfferWithBuyer; status: 'accepted' | 'rejected' } | null>(null);
-
-  // Delete history item modal
-  const [deleteHistoryTarget, setDeleteHistoryTarget] = useState<{ id: string; brand: string } | null>(null);
-  const [deleteHistoryLoading, setDeleteHistoryLoading] = useState(false);
-
-  // Memoised refresh so both useEffect and useFocusEffect use the same stable reference
   const refresh = useCallback(async () => {
     if (!user?.id) return;
-    const uid = user.id;
     setLoading(true);
     try {
       await Promise.all([
-        fetchVouchers(uid),
-        fetchListings(),
-        fetchMyOffers(uid),
-        fetchIncomingOffers(uid),
+        fetchVouchers(user.id),
+        fetchConversations(user.id),
       ]);
     } finally {
       setLoading(false);
     }
-  }, [user?.id, fetchVouchers, fetchListings, fetchMyOffers, fetchIncomingOffers]);
+  }, [user?.id, fetchVouchers, fetchConversations]);
 
   useEffect(() => { refresh(); }, [refresh]);
-
-  // Re-fetch every time this tab comes into focus (catches changes made on other tabs)
   useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
 
-  function handleRespond(offer: OfferWithBuyer, status: 'accepted' | 'rejected') {
-    setRespondTarget({ offer, status });
-  }
-
-  async function confirmRespond() {
-    if (!respondTarget) return;
-    const { offer, status } = respondTarget;
-    setRespondingId(offer.id);
-    setRespondTarget(null);
-    try {
-      await respondToOffer(offer.id, status);
-    } catch {
-      // error handled silently; list will refresh
-    } finally {
-      setRespondingId(null);
-      refresh();
-    }
-  }
-
-  const usedVouchers = vouchers.filter((v) => v.status === 'used');
+  // Voucher history
+  const usedVouchers    = vouchers.filter((v) => v.status === 'used');
   const expiredVouchers = vouchers.filter((v) => v.status === 'expired');
-  const pendingCount = incomingOffers.filter((o) => o.status === 'pending').length;
+  const usedTotal       = usedVouchers.reduce((s, v) => s + v.original_value, 0);
+  const expiredTotal    = expiredVouchers.reduce((s, v) => s + v.original_value, 0);
 
-  const usedTotal = usedVouchers.reduce((s, v) => s + v.original_value, 0);
-  const expiredTotal = expiredVouchers.reduce((s, v) => s + v.original_value, 0);
-  const allOffers = [...incomingOffers, ...myOffers];
+  // Closed deals — only show finished conversations (not active ones)
+  const closedDeals = conversations.filter((c) =>
+    ['completed', 'rejected', 'cancelled', 'refunded'].includes(c.offer_status)
+  );
+  const completedDeals = closedDeals.filter((c) => c.offer_status === 'completed');
+  const totalSaved = completedDeals
+    .filter((c) => !c.is_seller)
+    .reduce((s, c) => s + (c.voucher_original_value - c.offer_amount), 0);
 
-  async function confirmDeleteHistory() {
-    if (!deleteHistoryTarget) return;
-    setDeleteHistoryLoading(true);
-    try {
-      await deleteVoucher(deleteHistoryTarget.id);
-    } finally {
-      setDeleteHistoryLoading(false);
-      setDeleteHistoryTarget(null);
-    }
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    setDeleteLoading(true);
+    try { await deleteVoucher(deleteTarget.id); }
+    finally { setDeleteLoading(false); setDeleteTarget(null); }
   }
 
   function toggleSection(s: Section) {
@@ -121,12 +85,8 @@ export default function NotificationsScreen() {
   }
 
   function renderSectionHeader(
-    id: Section,
-    emoji: string,
-    label: string,
-    count: number,
-    badge?: string,
-    badgeColor?: string,
+    id: Section, emoji: string, label: string, count: number,
+    badge?: string, badgeColor?: string,
   ) {
     const isOpen = openSection === id;
     return (
@@ -152,321 +112,191 @@ export default function NotificationsScreen() {
 
   return (
     <View style={styles.container}>
-      <AppHeader subtitle="Your offers & trade history" />
+      <AppHeader subtitle="Your voucher & deal history" />
       <View style={styles.header}>
         <Text style={styles.title}>History</Text>
-        <Text style={styles.subtitle}>Track all your voucher activity</Text>
+        <Text style={styles.subtitle}>
+          {completedDeals.length > 0
+            ? `${completedDeals.length} completed deal${completedDeals.length !== 1 ? 's' : ''}${totalSaved > 0 ? ` · saved ${formatCurrency(totalSaved)}` : ''}`
+            : 'Your closed deals and used vouchers'}
+        </Text>
       </View>
 
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={refresh} tintColor={colors.accent} />}
-      >
-
-        {/* Used Vouchers */}
-        <View style={styles.accordionCard}>
-          {renderSectionHeader('used', '✅', 'Used Vouchers', usedVouchers.length,
-            usedVouchers.length > 0 ? formatCurrency(usedTotal) : undefined, colors.success)}
-          {openSection === 'used' && (
-            <View style={styles.accordionBody}>
-              {usedVouchers.length === 0 ? (
-                <EmptyState emoji="✅" text="No used vouchers yet" />
-              ) : (
-                usedVouchers.map((v) => (
-                  <View key={v.id} style={styles.historyItem}>
-                    <View style={styles.historyItemLeft}>
-                      <Text style={styles.historyBrand}>{v.brand}</Text>
-                      <Text style={styles.historyDate}>
-                        {v.updated_at ? new Date(v.updated_at).toLocaleDateString('en-GB') : '—'}
-                      </Text>
-                    </View>
-                    <View style={styles.historyItemRight}>
-                      <Text style={[styles.historyValue, { color: colors.success }]}>
-                        {formatCurrency(v.original_value)}
-                      </Text>
-                      <View style={[styles.historyBadge, { backgroundColor: colors.success + '20' }]}>
-                        <Text style={[styles.historyBadgeText, { color: colors.success }]}>Used</Text>
-                      </View>
-                      <TouchableOpacity
-                        onPress={() => setDeleteHistoryTarget({ id: v.id, brand: v.brand })}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                      >
-                        <Text style={styles.historyDeleteBtn}>🗑</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                ))
-              )}
-            </View>
-          )}
-        </View>
-
-        {/* Expired Vouchers */}
-        <View style={styles.accordionCard}>
-          {renderSectionHeader('expired', '⏰', 'Expired Vouchers', expiredVouchers.length,
-            expiredVouchers.length > 0 ? formatCurrency(expiredTotal) + ' lost' : undefined, colors.error)}
-          {openSection === 'expired' && (
-            <View style={styles.accordionBody}>
-              {expiredVouchers.length === 0 ? (
-                <EmptyState emoji="🎉" text="No expired vouchers — great job!" />
-              ) : (
-                expiredVouchers.map((v) => (
-                  <View key={v.id} style={styles.historyItem}>
-                    <View style={styles.historyItemLeft}>
-                      <Text style={styles.historyBrand}>{v.brand}</Text>
-                      <Text style={styles.historyDate}>
-                        Expired {v.expires_at ? new Date(v.expires_at).toLocaleDateString('en-GB') : '—'}
-                      </Text>
-                    </View>
-                    <View style={styles.historyItemRight}>
-                      <Text style={[styles.historyValue, { color: colors.error }]}>
-                        {formatCurrency(v.original_value)}
-                      </Text>
-                      <View style={[styles.historyBadge, { backgroundColor: colors.error + '20' }]}>
-                        <Text style={[styles.historyBadgeText, { color: colors.error }]}>Expired</Text>
-                      </View>
-                      <TouchableOpacity
-                        onPress={() => setDeleteHistoryTarget({ id: v.id, brand: v.brand })}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                      >
-                        <Text style={styles.historyDeleteBtn}>🗑</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                ))
-              )}
-            </View>
-          )}
-        </View>
-
-        {/* Sales & Purchases */}
-        <View style={styles.accordionCard}>
-          {renderSectionHeader('trade', '🤝', 'Sales & Purchases', 0, undefined)}
-          {openSection === 'trade' && (
-            <View style={styles.accordionBody}>
-              <View style={styles.subFilter}>
-                {(['all', 'sales', 'purchases'] as TradeFilter[]).map((f) => (
-                  <TouchableOpacity
-                    key={f}
-                    style={[styles.subFilterChip, tradeFilter === f && styles.subFilterChipActive]}
-                    onPress={() => setTradeFilter(f)}
-                  >
-                    <Text style={[styles.subFilterText, tradeFilter === f && styles.subFilterTextActive]}>
-                      {f === 'all' ? 'All' : f === 'sales' ? 'My Sales' : 'My Purchases'}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-              <EmptyState emoji="🤝" text="No completed trades yet" />
-            </View>
-          )}
-        </View>
-
-        {/* Offers */}
-        <View style={styles.accordionCard}>
-          {renderSectionHeader(
-            'offers', '📨', 'Offers',
-            allOffers.length,
-            pendingCount > 0 ? `${pendingCount} pending` : undefined,
-            colors.warning,
-          )}
-          {openSection === 'offers' && (
-            <View style={styles.accordionBody}>
-              {/* Sub-tabs */}
-              <View style={styles.offerTabs}>
-                <Text style={styles.offerTabLabel}>Received ({incomingOffers.length})</Text>
-                <Text style={styles.offerTabLabel}>Sent ({myOffers.length})</Text>
-              </View>
-
-              {/* Incoming */}
-              {incomingOffers.length > 0 && (
-                <View>
-                  <Text style={styles.offerGroupTitle}>Received</Text>
-                  {incomingOffers.map((offer) => (
-                    <View key={offer.id} style={styles.offerCard}>
-                      <View style={styles.offerTop}>
-                        <View style={styles.buyerAvatar}>
-                          <Text style={styles.buyerInitial}>
-                            {offer.buyer?.display_name?.[0]?.toUpperCase() ?? '?'}
-                          </Text>
-                        </View>
-                        <View style={styles.offerMeta}>
-                          <Text style={styles.offerBuyer}>{offer.buyer?.display_name ?? 'Buyer'}</Text>
-                          <Text style={styles.offerRating}>
-                            ⭐ {(offer.buyer?.rating ?? 5).toFixed(1)} · {offer.buyer?.total_trades ?? 0} trades
-                          </Text>
-                        </View>
-                        <View style={[styles.statusBadge, { backgroundColor: STATUS_COLORS[offer.status] + '20' }]}>
-                          <Text style={[styles.statusText, { color: STATUS_COLORS[offer.status] }]}>
-                            {STATUS_LABEL[offer.status]}
-                          </Text>
-                        </View>
-                      </View>
-                      <View style={styles.offerDetails}>
-                        <Text style={styles.offerBrand}>{offer.voucher?.brand}</Text>
-                        <View style={styles.priceRow}>
-                          <View style={styles.priceItem}>
-                            <Text style={styles.priceLabel}>Their offer</Text>
-                            <Text style={styles.offerPrice}>{formatCurrency(offer.offer_amount)}</Text>
-                          </View>
-                          <View style={styles.priceDivider} />
-                          <View style={styles.priceItem}>
-                            <Text style={styles.priceLabel}>Listed at</Text>
-                            <Text style={styles.listingPrice}>
-                              {formatCurrency(offer.voucher?.listing_price ?? offer.voucher?.original_value ?? 0)}
+      {loading && conversations.length === 0 && vouchers.length === 0 ? (
+        <View style={styles.centerLoading}><ActivityIndicator color={colors.accent} /></View>
+      ) : (
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.content}
+          refreshControl={<RefreshControl refreshing={loading} onRefresh={refresh} tintColor={colors.accent} />}
+        >
+          {/* ── Completed Deals ── */}
+          <View style={styles.accordionCard}>
+            {renderSectionHeader(
+              'trade', '🤝', 'Completed Deals', closedDeals.length,
+              completedDeals.length > 0 ? `${completedDeals.length} closed` : undefined,
+              colors.success,
+            )}
+            {openSection === 'trade' && (
+              <View style={styles.accordionBody}>
+                {closedDeals.length === 0 ? (
+                  <EmptyState emoji="🤝" text="No closed deals yet — go to Offers to negotiate!" />
+                ) : (
+                  closedDeals.map((deal) => {
+                    const statusColor = DEAL_STATUS_COLOR[deal.offer_status] ?? colors.textMuted;
+                    const statusLabel = DEAL_STATUS_LABEL[deal.offer_status] ?? deal.offer_status;
+                    const saved = deal.voucher_original_value - deal.offer_amount;
+                    return (
+                      <View key={deal.offer_id} style={styles.dealCard}>
+                        <View style={styles.dealTop}>
+                          <View style={styles.dealInfo}>
+                            <Text style={styles.dealBrand}>{deal.voucher_brand}</Text>
+                            <Text style={styles.dealRole}>
+                              {deal.is_seller ? '🏷 You sold' : '🛒 You bought'} · {deal.other_user_name}
                             </Text>
                           </View>
-                          <View style={styles.priceDivider} />
-                          <View style={styles.priceItem}>
-                            <Text style={styles.priceLabel}>Face value</Text>
-                            <Text style={styles.faceValue}>
-                              {formatCurrency(offer.voucher?.original_value ?? 0)}
+                          <View style={[styles.dealStatusBadge, { backgroundColor: statusColor + '20' }]}>
+                            <Text style={[styles.dealStatusText, { color: statusColor }]}>{statusLabel}</Text>
+                          </View>
+                        </View>
+                        <View style={styles.dealPrices}>
+                          <View style={styles.dealPriceItem}>
+                            <Text style={styles.dealPriceLabel}>Deal price</Text>
+                            <Text style={[styles.dealPriceValue, { color: colors.secondary }]}>
+                              {formatCurrency(deal.offer_amount)}
                             </Text>
                           </View>
-                        </View>
-                        {offer.message && (
-                          <View style={styles.messageBox}>
-                            <Text style={styles.messageText}>"{offer.message}"</Text>
+                          <View style={styles.dealPriceDivider} />
+                          <View style={styles.dealPriceItem}>
+                            <Text style={styles.dealPriceLabel}>Face value</Text>
+                            <Text style={styles.dealPriceOriginal}>
+                              {formatCurrency(deal.voucher_original_value)}
+                            </Text>
                           </View>
-                        )}
-                      </View>
-                      {offer.status === 'pending' && (
-                        <View style={styles.actions}>
-                          <TouchableOpacity
-                            style={styles.rejectBtn}
-                            onPress={() => handleRespond(offer, 'rejected')}
-                            disabled={respondingId === offer.id}
-                          >
-                            {respondingId === offer.id
-                              ? <ActivityIndicator color={colors.error} size="small" />
-                              : <Text style={styles.rejectText}>Reject</Text>
-                            }
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            style={styles.acceptBtn}
-                            onPress={() => handleRespond(offer, 'accepted')}
-                            disabled={respondingId === offer.id}
-                          >
-                            {respondingId === offer.id
-                              ? <ActivityIndicator color={colors.white} size="small" />
-                              : <Text style={styles.acceptText}>Accept ✓</Text>
-                            }
-                          </TouchableOpacity>
+                          {!deal.is_seller && deal.offer_status === 'completed' && saved > 0 && (
+                            <>
+                              <View style={styles.dealPriceDivider} />
+                              <View style={styles.dealPriceItem}>
+                                <Text style={styles.dealPriceLabel}>You saved</Text>
+                                <Text style={[styles.dealPriceValue, { color: colors.success }]}>
+                                  {formatCurrency(saved)}
+                                </Text>
+                              </View>
+                            </>
+                          )}
                         </View>
-                      )}
+                        <Text style={styles.dealDate}>
+                          {new Date(deal.updated_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                        </Text>
+                      </View>
+                    );
+                  })
+                )}
+              </View>
+            )}
+          </View>
+
+          {/* ── Used Vouchers ── */}
+          <View style={styles.accordionCard}>
+            {renderSectionHeader('used', '✅', 'Used Vouchers', usedVouchers.length,
+              usedVouchers.length > 0 ? formatCurrency(usedTotal) : undefined, colors.success)}
+            {openSection === 'used' && (
+              <View style={styles.accordionBody}>
+                {usedVouchers.length === 0 ? (
+                  <EmptyState emoji="✅" text="No used vouchers yet" />
+                ) : (
+                  usedVouchers.map((v) => (
+                    <View key={v.id} style={styles.historyItem}>
+                      <View style={styles.historyItemLeft}>
+                        <Text style={styles.historyBrand}>{v.brand}</Text>
+                        <Text style={styles.historyDate}>
+                          {v.updated_at ? new Date(v.updated_at).toLocaleDateString('en-GB') : '—'}
+                        </Text>
+                      </View>
+                      <View style={styles.historyItemRight}>
+                        <Text style={[styles.historyValue, { color: colors.success }]}>
+                          {formatCurrency(v.original_value)}
+                        </Text>
+                        <View style={[styles.historyBadge, { backgroundColor: colors.success + '20' }]}>
+                          <Text style={[styles.historyBadgeText, { color: colors.success }]}>Used</Text>
+                        </View>
+                        <TouchableOpacity
+                          onPress={() => setDeleteTarget({ id: v.id, brand: v.brand })}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
+                          <Text style={styles.historyDeleteBtn}>🗑</Text>
+                        </TouchableOpacity>
+                      </View>
                     </View>
-                  ))}
-                </View>
-              )}
+                  ))
+                )}
+              </View>
+            )}
+          </View>
 
-              {/* Sent */}
-              {myOffers.length > 0 && (
-                <View>
-                  <Text style={styles.offerGroupTitle}>Sent</Text>
-                  {myOffers.map((offer) => (
-                    <View key={offer.id} style={styles.offerCard}>
-                      <View style={styles.offerTop}>
-                        <Text style={styles.offerBrandBig}>{offer.voucher?.brand ?? 'Voucher'}</Text>
-                        <View style={[styles.statusBadge, { backgroundColor: STATUS_COLORS[offer.status] + '20' }]}>
-                          <Text style={[styles.statusText, { color: STATUS_COLORS[offer.status] }]}>
-                            {STATUS_LABEL[offer.status]}
-                          </Text>
-                        </View>
+          {/* ── Expired Vouchers ── */}
+          <View style={styles.accordionCard}>
+            {renderSectionHeader('expired', '⏰', 'Expired Vouchers', expiredVouchers.length,
+              expiredVouchers.length > 0 ? formatCurrency(expiredTotal) + ' lost' : undefined, colors.error)}
+            {openSection === 'expired' && (
+              <View style={styles.accordionBody}>
+                {expiredVouchers.length === 0 ? (
+                  <EmptyState emoji="🎉" text="No expired vouchers — great job!" />
+                ) : (
+                  expiredVouchers.map((v) => (
+                    <View key={v.id} style={styles.historyItem}>
+                      <View style={styles.historyItemLeft}>
+                        <Text style={styles.historyBrand}>{v.brand}</Text>
+                        <Text style={styles.historyDate}>
+                          Expired {v.expires_at ? new Date(v.expires_at).toLocaleDateString('en-GB') : '—'}
+                        </Text>
                       </View>
-                      <View style={styles.priceRow}>
-                        <View style={styles.priceItem}>
-                          <Text style={styles.priceLabel}>Your offer</Text>
-                          <Text style={styles.offerPrice}>{formatCurrency(offer.offer_amount)}</Text>
+                      <View style={styles.historyItemRight}>
+                        <Text style={[styles.historyValue, { color: colors.error }]}>
+                          {formatCurrency(v.original_value)}
+                        </Text>
+                        <View style={[styles.historyBadge, { backgroundColor: colors.error + '20' }]}>
+                          <Text style={[styles.historyBadgeText, { color: colors.error }]}>Expired</Text>
                         </View>
-                        <View style={styles.priceDivider} />
-                        <View style={styles.priceItem}>
-                          <Text style={styles.priceLabel}>Listed at</Text>
-                          <Text style={styles.listingPrice}>
-                            {formatCurrency(offer.voucher?.listing_price ?? offer.voucher?.original_value ?? 0)}
-                          </Text>
-                        </View>
-                        <View style={styles.priceDivider} />
-                        <View style={styles.priceItem}>
-                          <Text style={styles.priceLabel}>Face value</Text>
-                          <Text style={styles.faceValue}>
-                            {formatCurrency(offer.voucher?.original_value ?? 0)}
-                          </Text>
-                        </View>
+                        <TouchableOpacity
+                          onPress={() => setDeleteTarget({ id: v.id, brand: v.brand })}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
+                          <Text style={styles.historyDeleteBtn}>🗑</Text>
+                        </TouchableOpacity>
                       </View>
-                      {offer.message && (
-                        <View style={styles.messageBox}>
-                          <Text style={styles.messageText}>"{offer.message}"</Text>
-                        </View>
-                      )}
-                      <Text style={styles.offerDate}>
-                        Sent {new Date(offer.created_at).toLocaleDateString('en-GB')}
-                      </Text>
                     </View>
-                  ))}
-                </View>
-              )}
+                  ))
+                )}
+              </View>
+            )}
+          </View>
+        </ScrollView>
+      )}
 
-              {allOffers.length === 0 && (
-                <EmptyState emoji="📨" text="No offers yet" />
-              )}
-            </View>
-          )}
-        </View>
-      </ScrollView>
-
-      {/* Delete history item confirmation */}
-      <Modal visible={!!deleteHistoryTarget} transparent animationType="fade">
+      {/* Delete confirmation modal */}
+      <Modal visible={!!deleteTarget} transparent animationType="fade">
         <View style={styles.confirmOverlay}>
           <View style={styles.confirmBox}>
             <Text style={styles.confirmTitle}>Remove from History?</Text>
             <Text style={styles.confirmSub}>
-              Permanently delete "{deleteHistoryTarget?.brand}" from your history. This cannot be undone.
+              Permanently delete "{deleteTarget?.brand}" from your history. This cannot be undone.
             </Text>
             <View style={styles.confirmBtns}>
               <TouchableOpacity
                 style={styles.confirmCancel}
-                onPress={() => setDeleteHistoryTarget(null)}
-                disabled={deleteHistoryLoading}
+                onPress={() => setDeleteTarget(null)}
+                disabled={deleteLoading}
               >
                 <Text style={styles.confirmCancelText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.confirmAction, styles.confirmReject]}
-                onPress={confirmDeleteHistory}
-                disabled={deleteHistoryLoading}
+                style={[styles.confirmAction, { backgroundColor: colors.error }]}
+                onPress={confirmDelete}
+                disabled={deleteLoading}
               >
                 <Text style={styles.confirmActionText}>
-                  {deleteHistoryLoading ? 'Deleting…' : 'Delete'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Accept / Reject confirmation (replaces Alert.alert) */}
-      <Modal visible={!!respondTarget} transparent animationType="fade">
-        <View style={styles.confirmOverlay}>
-          <View style={styles.confirmBox}>
-            <Text style={styles.confirmTitle}>
-              {respondTarget?.status === 'accepted' ? 'Accept Offer?' : 'Reject Offer?'}
-            </Text>
-            <Text style={styles.confirmSub}>
-              {respondTarget?.status === 'accepted'
-                ? `Accept ${respondTarget.offer.buyer?.display_name}'s offer of ${formatCurrency(respondTarget.offer.offer_amount)}? You'll need to arrange the transfer.`
-                : `Reject the offer from ${respondTarget?.offer.buyer?.display_name}? They will be notified.`}
-            </Text>
-            <View style={styles.confirmBtns}>
-              <TouchableOpacity style={styles.confirmCancel} onPress={() => setRespondTarget(null)}>
-                <Text style={styles.confirmCancelText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.confirmAction, respondTarget?.status === 'accepted' ? styles.confirmAccept : styles.confirmReject]}
-                onPress={confirmRespond}
-              >
-                <Text style={styles.confirmActionText}>
-                  {respondTarget?.status === 'accepted' ? 'Accept ✓' : 'Reject'}
+                  {deleteLoading ? 'Deleting…' : 'Delete'}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -496,6 +326,7 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: 24, fontWeight: '800', color: colors.white },
   subtitle: { fontSize: fontSizes.sm, color: colors.accent, marginTop: 2 },
+  centerLoading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   scroll: { flex: 1 },
   content: { padding: spacing.md, paddingBottom: 48, gap: spacing.md },
 
@@ -510,10 +341,8 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   accordionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: spacing.md,
+    flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'space-between', padding: spacing.md,
   },
   accordionLeft: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   accordionEmoji: { fontSize: 24 },
@@ -525,19 +354,39 @@ const styles = StyleSheet.create({
   accordionChevron: { fontSize: fontSizes.xxl, color: colors.gray400, transform: [{ rotate: '0deg' }] },
   accordionChevronOpen: { transform: [{ rotate: '90deg' }] },
   accordionBody: {
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    padding: spacing.md,
-    gap: spacing.sm,
+    borderTopWidth: 1, borderTopColor: colors.border,
+    padding: spacing.md, gap: spacing.sm,
   },
 
+  // Completed deal cards
+  dealCard: {
+    backgroundColor: colors.bgLight,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  dealTop: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: spacing.sm },
+  dealInfo: { flex: 1 },
+  dealBrand: { fontSize: fontSizes.md, fontWeight: '800', color: colors.text },
+  dealRole: { fontSize: fontSizes.xs, color: colors.textMuted, marginTop: 2 },
+  dealStatusBadge: { paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: radius.pill },
+  dealStatusText: { fontSize: fontSizes.xs, fontWeight: '700' },
+  dealPrices: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm },
+  dealPriceItem: { flex: 1, alignItems: 'center' },
+  dealPriceLabel: { fontSize: fontSizes.xs, color: colors.textMuted, marginBottom: 2 },
+  dealPriceValue: { fontSize: fontSizes.md, fontWeight: '800' },
+  dealPriceOriginal: { fontSize: fontSizes.md, color: colors.textMuted, textDecorationLine: 'line-through' },
+  dealPriceDivider: { width: 1, height: 32, backgroundColor: colors.border },
+  dealDate: { fontSize: fontSizes.xs, color: colors.textMuted },
+
+  // History items
   historyItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'row', alignItems: 'center',
     justifyContent: 'space-between',
     paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.gray100,
+    borderBottomWidth: 1, borderBottomColor: colors.gray100,
   },
   historyItemLeft: { flex: 1 },
   historyBrand: { fontSize: fontSizes.md, fontWeight: '700', color: colors.text },
@@ -547,70 +396,6 @@ const styles = StyleSheet.create({
   historyBadge: { paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: radius.pill },
   historyBadgeText: { fontSize: fontSizes.xs, fontWeight: '700' },
   historyDeleteBtn: { fontSize: 14, marginTop: 2 },
-
-  subFilter: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.sm },
-  subFilterChip: {
-    borderWidth: 1, borderColor: colors.border,
-    borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: spacing.xs,
-    backgroundColor: colors.bgLight,
-  },
-  subFilterChipActive: { borderColor: colors.accent, backgroundColor: colors.accent + '15' },
-  subFilterText: { fontSize: fontSizes.xs, color: colors.textMuted, fontWeight: '500' },
-  subFilterTextActive: { color: colors.accent, fontWeight: '700' },
-
-  offerTabs: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: spacing.sm },
-  offerTabLabel: { fontSize: fontSizes.xs, color: colors.textMuted, fontWeight: '600' },
-  offerGroupTitle: {
-    fontSize: fontSizes.sm, fontWeight: '800', color: colors.primary,
-    textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: spacing.sm, marginTop: spacing.sm,
-  },
-
-  offerCard: {
-    backgroundColor: colors.bgLight,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    marginBottom: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  offerTop: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm, gap: spacing.sm },
-  buyerAvatar: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: colors.secondary, alignItems: 'center', justifyContent: 'center',
-  },
-  buyerInitial: { color: colors.white, fontWeight: '700', fontSize: fontSizes.md },
-  offerMeta: { flex: 1 },
-  offerBuyer: { fontSize: fontSizes.md, fontWeight: '700', color: colors.text },
-  offerRating: { fontSize: fontSizes.xs, color: colors.textMuted },
-  offerBrandBig: { flex: 1, fontSize: fontSizes.lg, fontWeight: '800', color: colors.text },
-  statusBadge: { paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: radius.pill },
-  statusText: { fontSize: fontSizes.xs, fontWeight: '700' },
-  offerDetails: { marginBottom: spacing.sm },
-  offerBrand: { fontSize: fontSizes.lg, fontWeight: '800', color: colors.text, marginBottom: spacing.sm },
-  priceRow: { flexDirection: 'row', alignItems: 'center' },
-  priceItem: { flex: 1, alignItems: 'center' },
-  priceLabel: { fontSize: fontSizes.xs, color: colors.textMuted, marginBottom: 2 },
-  offerPrice: { fontSize: fontSizes.md, fontWeight: '800', color: colors.accent },
-  listingPrice: { fontSize: fontSizes.md, fontWeight: '600', color: colors.text },
-  faceValue: { fontSize: fontSizes.md, color: colors.textMuted, textDecorationLine: 'line-through' },
-  priceDivider: { width: 1, height: 32, backgroundColor: colors.border },
-  messageBox: {
-    backgroundColor: colors.gray100, borderRadius: radius.md,
-    padding: spacing.sm, marginTop: spacing.sm,
-  },
-  messageText: { fontSize: fontSizes.sm, color: colors.textMuted, fontStyle: 'italic' },
-  offerDate: { fontSize: fontSizes.xs, color: colors.textMuted, marginTop: spacing.sm },
-  actions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.xs },
-  rejectBtn: {
-    flex: 1, borderWidth: 1, borderColor: colors.error,
-    borderRadius: radius.md, padding: spacing.sm, alignItems: 'center',
-  },
-  rejectText: { color: colors.error, fontWeight: '700', fontSize: fontSizes.sm },
-  acceptBtn: {
-    flex: 2, backgroundColor: colors.success,
-    borderRadius: radius.md, padding: spacing.sm, alignItems: 'center',
-  },
-  acceptText: { color: colors.white, fontWeight: '700', fontSize: fontSizes.sm },
 
   empty: { alignItems: 'center', paddingVertical: spacing.lg },
   emptyEmoji: { fontSize: 40, marginBottom: spacing.sm },
@@ -624,7 +409,5 @@ const styles = StyleSheet.create({
   confirmCancel: { flex: 1, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, alignItems: 'center' },
   confirmCancelText: { color: colors.textMuted, fontWeight: '600' },
   confirmAction: { flex: 1, padding: spacing.md, borderRadius: radius.md, alignItems: 'center' },
-  confirmAccept: { backgroundColor: colors.success },
-  confirmReject: { backgroundColor: colors.error },
   confirmActionText: { color: colors.white, fontWeight: '700' },
 });

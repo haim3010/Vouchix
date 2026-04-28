@@ -1,7 +1,6 @@
 import { Tabs } from 'expo-router';
 import { View, Text, StyleSheet } from 'react-native';
 import { colors } from '@/lib/constants/theme';
-import { useMarketplaceStore } from '@/lib/stores/marketplaceStore';
 import { useMessagesStore } from '@/lib/stores/messagesStore';
 
 function TabIcon({ emoji, label, focused, badge }: { emoji: string; label: string; focused: boolean; badge?: number }) {
@@ -21,11 +20,9 @@ function TabIcon({ emoji, label, focused, badge }: { emoji: string; label: strin
 }
 
 export default function TabsLayout() {
-  const incomingOffers = useMarketplaceStore((s) => s.incomingOffers);
-  const pendingCount = incomingOffers.filter((o) => o.status === 'pending').length;
   const conversations = useMessagesStore((s) => s.conversations);
-  // Badge = conversations that have an offer message but no chat messages yet (unread)
-  const unreadCount = 0; // extend later with read-tracking
+  // Badge = pending conversations (offers awaiting seller action)
+  const pendingConvs = conversations.filter((c) => c.offer_status === 'pending' && c.is_seller).length;
 
   return (
     <Tabs
@@ -51,7 +48,12 @@ export default function TabsLayout() {
         name="messages"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon emoji="💬" label="Messages" focused={focused} badge={conversations.length > 0 ? conversations.length : undefined} />
+            <TabIcon
+              emoji="🤝"
+              label="Offers"
+              focused={focused}
+              badge={pendingConvs > 0 ? pendingConvs : undefined}
+            />
           ),
         }}
       />
@@ -59,7 +61,7 @@ export default function TabsLayout() {
         name="notifications"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon emoji="🕐" label="History" focused={focused} badge={pendingCount} />
+            <TabIcon emoji="🕐" label="History" focused={focused} />
           ),
         }}
       />
