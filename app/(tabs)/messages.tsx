@@ -47,7 +47,7 @@ export default function MessagesScreen() {
     sendMessage, subscribeToMessages, subscribeToOffers,
     updateConversationStatus, updateConversationAmount,
   } = useMessagesStore();
-  const { completeOffer, cancelOffer, counterOffer } = useMarketplaceStore();
+  const { completeOffer, cancelOffer, counterOffer, respondToOffer } = useMarketplaceStore();
 
   const [draft, setDraft] = useState('');
   const [sendError, setSendError] = useState('');
@@ -127,6 +127,45 @@ export default function MessagesScreen() {
       updateConversationStatus(currentConversation.offer_id, 'cancelled');
     } catch {
       setActionError('Failed to cancel offer. Try again.');
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function handleAccept() {
+    if (!currentConversation) return;
+    setActionError('');
+    setActionLoading(true);
+    try {
+      await respondToOffer(currentConversation.offer_id, 'accepted');
+      updateConversationStatus(currentConversation.offer_id, 'accepted');
+      // Send a system message so the buyer sees the good news
+      await sendMessage(
+        currentConversation.offer_id,
+        user!.id,
+        `✅ Offer accepted! Payment of ${formatCurrency(currentConversation.offer_amount)} has been agreed. Proceed to payment to complete the deal.`
+      );
+    } catch {
+      setActionError('Failed to accept offer. Try again.');
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function handleReject() {
+    if (!currentConversation) return;
+    setActionError('');
+    setActionLoading(true);
+    try {
+      await respondToOffer(currentConversation.offer_id, 'rejected');
+      updateConversationStatus(currentConversation.offer_id, 'rejected');
+      await sendMessage(
+        currentConversation.offer_id,
+        user!.id,
+        `❌ Offer declined. Feel free to send a new offer if you'd like to negotiate.`
+      );
+    } catch {
+      setActionError('Failed to reject offer. Try again.');
     } finally {
       setActionLoading(false);
     }
@@ -268,12 +307,15 @@ export default function MessagesScreen() {
   // ── Offer summary banner at top of chat ───────────────────────────────────
   function renderChatHeader(conv: Conversation) {
     const statusColor = STATUS_COLOR[conv.offer_status] ?? colors.textMuted;
-    // Only the SELLER can complete (they hand over the voucher)
+    // SELLER: accept or reject a pending offer
+    const canAccept   = conv.offer_status === 'pending' && conv.is_seller;
+    const canReject   = conv.offer_status === 'pending' && conv.is_seller;
+    // SELLER: mark as completed once accepted
     const canComplete = conv.offer_status === 'accepted' && conv.is_seller;
-    // Only the BUYER can counter-offer or cancel on a pending offer
+    // BUYER: counter-offer or cancel on a pending offer
     const canCounter  = conv.offer_status === 'pending' && !conv.is_seller;
     const canCancel   = conv.offer_status === 'pending' && !conv.is_seller;
-    const showActions = canComplete || canCounter || canCancel;
+    const showActions = canAccept || canComplete || canCounter || canCancel;
 
     return (
       <View>
@@ -386,41 +428,80 @@ export default function MessagesScreen() {
 
         {/* ── Offer actions ── */}
         {showActions && !showCounterInput && !showCompleteConfirm && (
-          <View style={styles.offerActions}>
-            {/* SELLER: complete — shows confirmation first */}
+          <View>
+            {/* SELLER: accept or reject a pending offer */}
+            {(canAccept || canReject) && (
+              <View style={styles.sellerPendingBanner}>
+                <Text style={styles.sellerPendingTitle}>📨 New offer received</Text>
+                <Text style={styles.sellerPendingSubtitle}>
+                  {conv.other_user_name} offered {formatCurrency(conv.offer_amount)} for your {conv.voucher_brand} voucher
+                  {conv.trade_brand ? ` + 🔄 ${conv.trade_brand} (${formatCurrency(conv.trade_value ?? 0)})` : ''}.
+                  Chat first, then accept or decline.
+                </Text>
+                <View style={styles.offerActions}>
+                  {canAccept && (
+                    <TouchableOpacity
+                      style={[styles.actionBtn, styles.actionBtnComplete, { flex: 1.3 }]}
+                      onPress={handleAccept}
+                      disabled={actionLoading}
+                    >
+                      {actionLoading
+                        ? <ActivityIndicator color={colors.white} size="small" />
+                        : <Text style={styles.actionBtnText}>✓ Accept Offer</Text>}
+                    </TouchableOpacity>
+                  )}
+                  {canReject && (
+                    <TouchableOpacity
+                      style={[styles.actionBtn, styles.actionBtnCancel, { flex: 0.8 }]}
+                      onPress={handleReject}
+                      disabled={actionLoading}
+                    >
+                      <Text style={[styles.actionBtnText, { color: colors.error }]}>✕ Decline</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
+            )}
+            {/* SELLER: mark as completed once accepted */}
             {canComplete && (
-              <TouchableOpacity
-                style={[styles.actionBtn, styles.actionBtnComplete]}
-                onPress={() => { setActionError(''); setShowCompleteConfirm(true); }}
-                disabled={actionLoading}
-              >
-                <Text style={styles.actionBtnText}>✓ Mark as Completed</Text>
-              </TouchableOpacity>
+              <View style={styles.offerActions}>
+                <TouchableOpacity
+                  style={[styles.actionBtn, styles.actionBtnComplete]}
+                  onPress={() => { setActionError(''); setShowCompleteConfirm(true); }}
+                  disabled={actionLoading}
+                >
+                  <Text style={styles.actionBtnText}>✓ Mark as Completed</Text>
+                </TouchableOpacity>
+              </View>
             )}
             {/* BUYER: counter + cancel */}
-            {canCounter && (
-              <TouchableOpacity
-                style={[styles.actionBtn, styles.actionBtnCounter]}
-                onPress={() => {
-                  setCounterAmount(String(conv.offer_amount));
-                  setShowCounterInput(true);
-                  setActionError('');
-                }}
-                disabled={actionLoading}
-              >
-                <Text style={styles.actionBtnText}>↩ Counter Offer</Text>
-              </TouchableOpacity>
-            )}
-            {canCancel && (
-              <TouchableOpacity
-                style={[styles.actionBtn, styles.actionBtnCancel]}
-                onPress={handleCancel}
-                disabled={actionLoading}
-              >
-                {actionLoading
-                  ? <ActivityIndicator color={colors.error} size="small" />
-                  : <Text style={[styles.actionBtnText, { color: colors.error }]}>✕ Cancel</Text>}
-              </TouchableOpacity>
+            {(canCounter || canCancel) && (
+              <View style={styles.offerActions}>
+                {canCounter && (
+                  <TouchableOpacity
+                    style={[styles.actionBtn, styles.actionBtnCounter]}
+                    onPress={() => {
+                      setCounterAmount(String(conv.offer_amount));
+                      setShowCounterInput(true);
+                      setActionError('');
+                    }}
+                    disabled={actionLoading}
+                  >
+                    <Text style={styles.actionBtnText}>↩ Counter Offer</Text>
+                  </TouchableOpacity>
+                )}
+                {canCancel && (
+                  <TouchableOpacity
+                    style={[styles.actionBtn, styles.actionBtnCancel]}
+                    onPress={handleCancel}
+                    disabled={actionLoading}
+                  >
+                    {actionLoading
+                      ? <ActivityIndicator color={colors.error} size="small" />
+                      : <Text style={[styles.actionBtnText, { color: colors.error }]}>✕ Cancel</Text>}
+                  </TouchableOpacity>
+                )}
+              </View>
             )}
           </View>
         )}
@@ -744,6 +825,19 @@ const styles = StyleSheet.create({
     borderColor: '#F5A623',
   },
   tradePillInChatText: { fontSize: fontSizes.xs, fontWeight: '700', color: '#B8860B' },
+
+  // Seller pending offer banner
+  sellerPendingBanner: {
+    backgroundColor: colors.warning + '18',
+    borderWidth: 1,
+    borderColor: colors.warning,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+    gap: spacing.sm,
+  },
+  sellerPendingTitle: { fontSize: fontSizes.md, fontWeight: '800', color: colors.text },
+  sellerPendingSubtitle: { fontSize: fontSizes.sm, color: colors.textMuted, lineHeight: 20 },
 
   // Action buttons
   actionError: {
