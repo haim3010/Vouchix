@@ -15,6 +15,8 @@ export interface Conversation {
   offer_status: string;
   offer_amount: number;
   offer_message: string | null;
+  trade_brand?: string | null;
+  trade_value?: number | null;
   voucher_id: string;
   voucher_brand: string;
   voucher_original_value: number;
@@ -43,6 +45,7 @@ interface MessagesState {
   updateConversationStatus: (offerId: string, status: string) => void;
   updateConversationAmount: (offerId: string, amount: number) => void;
   subscribeToMessages: (offerId: string) => () => void;
+  subscribeToOffers: (userId: string) => () => void;
 }
 
 export const useMessagesStore = create<MessagesState>((set, get) => ({
@@ -61,6 +64,7 @@ export const useMessagesStore = create<MessagesState>((set, get) => ({
         .from('offers')
         .select(`
           id, status, offer_amount, message, updated_at, voucher_id,
+          trade_brand, trade_value,
           voucher:vouchers!offers_voucher_id_fkey(
             id, brand, original_value, owner_id,
             seller:profiles!vouchers_owner_id_fkey(id, display_name)
@@ -76,6 +80,7 @@ export const useMessagesStore = create<MessagesState>((set, get) => ({
           id, brand, original_value, owner_id,
           offers(
             id, status, offer_amount, message, updated_at, buyer_id,
+            trade_brand, trade_value,
             buyer:profiles!offers_buyer_id_fkey(id, display_name)
           )
         `)
@@ -93,6 +98,8 @@ export const useMessagesStore = create<MessagesState>((set, get) => ({
           offer_status: o.status as string,
           offer_amount: o.offer_amount as number,
           offer_message: o.message as string | null,
+          trade_brand: o.trade_brand as string | null,
+          trade_value: o.trade_value as number | null,
           voucher_id: voucher.id as string,
           voucher_brand: voucher.brand as string,
           voucher_original_value: voucher.original_value as number,
@@ -115,6 +122,8 @@ export const useMessagesStore = create<MessagesState>((set, get) => ({
             offer_status: o.status as string,
             offer_amount: o.offer_amount as number,
             offer_message: o.message as string | null,
+            trade_brand: o.trade_brand as string | null,
+            trade_value: o.trade_value as number | null,
             voucher_id: v.id as string,
             voucher_brand: v.brand as string,
             voucher_original_value: v.original_value as number,
@@ -245,6 +254,18 @@ export const useMessagesStore = create<MessagesState>((set, get) => ({
           ? { ...state.currentConversation, offer_amount: amount }
           : state.currentConversation,
     }));
+  },
+
+  subscribeToOffers: (userId: string) => {
+    const channel = supabase
+      .channel(`offers-refresh-${userId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'offers' },
+        () => { get().fetchConversations(userId); }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
   },
 
   subscribeToMessages: (offerId: string) => {

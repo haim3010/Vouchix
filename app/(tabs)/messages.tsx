@@ -43,7 +43,8 @@ export default function MessagesScreen() {
     conversations, currentMessages, currentConversation,
     loadingConversations, loadingMessages, sending,
     fetchConversations, openConversation, closeConversation,
-    sendMessage, subscribeToMessages, updateConversationStatus, updateConversationAmount,
+    sendMessage, subscribeToMessages, subscribeToOffers,
+    updateConversationStatus, updateConversationAmount,
   } = useMessagesStore();
   const { completeOffer, cancelOffer, counterOffer } = useMarketplaceStore();
 
@@ -64,6 +65,13 @@ export default function MessagesScreen() {
 
   useEffect(() => { refresh(); }, [refresh]);
   useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
+
+  // Realtime: auto-refresh conversations when any offer changes
+  useEffect(() => {
+    if (!user?.id) return;
+    const unsub = subscribeToOffers(user.id);
+    return unsub;
+  }, [user?.id]);
 
   // Subscribe to real-time messages when a conversation is open
   useEffect(() => {
@@ -270,12 +278,23 @@ export default function MessagesScreen() {
           <View style={styles.offerSummaryLeft}>
             <Text style={styles.offerSummaryBrand}>{conv.voucher_brand}</Text>
             <Text style={styles.offerSummaryFace}>Face value {formatCurrency(conv.voucher_original_value)}</Text>
+            {/* Cash component */}
+            {conv.offer_amount > 0 && (
+              <Text style={styles.offerSummaryAmount}>💰 {formatCurrency(conv.offer_amount)}</Text>
+            )}
+            {/* Trade component */}
+            {conv.trade_brand && (
+              <View style={styles.tradePillInChat}>
+                <Text style={styles.tradePillInChatText}>
+                  🔄 Trade: {conv.trade_brand} ({formatCurrency(conv.trade_value ?? 0)} value)
+                </Text>
+              </View>
+            )}
             {conv.offer_message ? (
               <Text style={styles.offerSummaryMsg} numberOfLines={2}>{conv.offer_message}</Text>
             ) : null}
           </View>
           <View style={styles.offerSummaryRight}>
-            <Text style={styles.offerSummaryAmount}>{formatCurrency(conv.offer_amount)}</Text>
             <View style={[styles.statusPill, { backgroundColor: statusColor + '20' }]}>
               <Text style={[styles.statusPillText, { color: statusColor }]}>
                 {STATUS_LABEL[conv.offer_status]}
@@ -664,7 +683,18 @@ const styles = StyleSheet.create({
   offerSummaryFace: { fontSize: fontSizes.xs, color: colors.textMuted, marginTop: 2 },
   offerSummaryMsg: { fontSize: fontSizes.xs, color: colors.textMuted, marginTop: spacing.xs, fontStyle: 'italic' },
   offerSummaryRight: { alignItems: 'flex-end', gap: 4 },
-  offerSummaryAmount: { fontSize: fontSizes.xl, fontWeight: '800', color: colors.secondary },
+  offerSummaryAmount: { fontSize: fontSizes.md, fontWeight: '800', color: colors.secondary, marginTop: 4 },
+  tradePillInChat: {
+    marginTop: 4,
+    backgroundColor: '#FFF3CD',
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderColor: '#F5A623',
+  },
+  tradePillInChatText: { fontSize: fontSizes.xs, fontWeight: '700', color: '#B8860B' },
 
   // Action buttons
   actionError: {

@@ -229,37 +229,47 @@ export default function MarketplaceScreen() {
   async function submitOffer() {
     if (!user?.id || !offerTarget) return;
     setOfferError('');
-    const isTrade = offerTarget.listing_price === null;
 
-    if (isTrade) {
-      if (!selectedTradeVoucher) {
-        setOfferError('Please select a voucher to offer in trade');
-        return;
-      }
-      const tradeMsg = `🔄 Trade offer: ${selectedTradeVoucher.brand} (${formatCurrency(selectedTradeVoucher.remaining_value)} value)${offerMessage ? '\n' + offerMessage : ''}`;
+    const lt = offerTarget.listing_type ?? (offerTarget.listing_price === null ? 'trade' : 'sale');
+    const cashAmount = parseFloat(offerAmount) || 0;
+
+    if (lt === 'sale') {
+      if (isNaN(cashAmount) || cashAmount <= 0) { setOfferError('Please enter a valid offer amount'); return; }
       setOfferLoading(true);
       try {
-        await makeOffer(offerTarget.id, user.id, selectedTradeVoucher.remaining_value, tradeMsg);
+        await makeOffer(offerTarget.id, user.id, cashAmount, offerMessage || undefined);
+        setOfferTarget(null); setOfferAmount(''); setOfferMessage(''); setOfferError('');
+      } catch { setOfferError('Failed to send offer. Try again.'); }
+      finally { setOfferLoading(false); }
+
+    } else if (lt === 'trade') {
+      if (!selectedTradeVoucher) { setOfferError('Please select a voucher to offer in trade'); return; }
+      setOfferLoading(true);
+      try {
+        await makeOffer(
+          offerTarget.id, user.id, 0, offerMessage || undefined,
+          selectedTradeVoucher.brand, selectedTradeVoucher.remaining_value,
+        );
         setOfferTarget(null); setOfferAmount(''); setOfferMessage('');
         setOfferError(''); setSelectedTradeVoucher(null);
-      } catch {
-        setOfferError('Failed to send trade offer. Try again.');
-      } finally {
-        setOfferLoading(false);
-      }
-      return;
-    }
+      } catch { setOfferError('Failed to send trade offer. Try again.'); }
+      finally { setOfferLoading(false); }
 
-    const amount = parseFloat(offerAmount);
-    if (isNaN(amount) || amount <= 0) { setOfferError('Please enter a valid offer amount'); return; }
-    setOfferLoading(true);
-    try {
-      await makeOffer(offerTarget.id, user.id, amount, offerMessage);
-      setOfferTarget(null); setOfferAmount(''); setOfferMessage(''); setOfferError('');
-    } catch {
-      setOfferError('Failed to send offer. Try again.');
-    } finally {
-      setOfferLoading(false);
+    } else {
+      // 'both' — require at least price OR voucher
+      if (cashAmount <= 0 && !selectedTradeVoucher) {
+        setOfferError('Enter a cash offer, select a voucher to trade, or both'); return;
+      }
+      setOfferLoading(true);
+      try {
+        await makeOffer(
+          offerTarget.id, user.id, cashAmount, offerMessage || undefined,
+          selectedTradeVoucher?.brand, selectedTradeVoucher?.remaining_value,
+        );
+        setOfferTarget(null); setOfferAmount(''); setOfferMessage('');
+        setOfferError(''); setSelectedTradeVoucher(null);
+      } catch { setOfferError('Failed to send offer. Try again.'); }
+      finally { setOfferLoading(false); }
     }
   }
 
@@ -288,6 +298,7 @@ export default function MarketplaceScreen() {
       await updateVoucher(selectedVoucher.id, {
         is_listed: true,
         listing_price: price,
+        listing_type: listingType,
         remaining_value: balance,
         notes: notesContent || selectedVoucher.notes,
       });
@@ -744,124 +755,139 @@ export default function MarketplaceScreen() {
       <Modal visible={!!offerTarget} animationType="slide" presentationStyle="pageSheet">
         <KeyboardAvoidingView style={styles.modalContainer} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <View style={styles.modalHandle} />
-          <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => { setOfferTarget(null); setOfferError(''); setSelectedTradeVoucher(null); }}>
-              <Text style={styles.modalClose}>Cancel</Text>
-            </TouchableOpacity>
-            <Text style={styles.modalTitle}>
-              {offerTarget?.listing_price === null ? 'Propose a Trade' : 'Make an Offer'}
-            </Text>
-            <View style={{ width: 56 }} />
-          </View>
-          {offerTarget && (
-            <ScrollView contentContainerStyle={styles.modalBody}>
-              {offerError.length > 0 && (
-                <View style={styles.inlineError}><Text style={styles.inlineErrorText}>⚠ {offerError}</Text></View>
-              )}
+          {offerTarget && (() => {
+            const lt = offerTarget.listing_type ?? (offerTarget.listing_price === null ? 'trade' : 'sale');
+            const showPrice   = lt === 'sale' || lt === 'both';
+            const showVoucher = lt === 'trade' || lt === 'both';
+            const modalTitleText = lt === 'trade' ? 'Propose a Trade' : lt === 'both' ? 'Make an Offer or Trade' : 'Make an Offer';
+            return (
+              <>
+                <View style={styles.modalHeader}>
+                  <TouchableOpacity onPress={() => { setOfferTarget(null); setOfferError(''); setSelectedTradeVoucher(null); setOfferAmount(''); }}>
+                    <Text style={styles.modalClose}>Cancel</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.modalTitle}>{modalTitleText}</Text>
+                  <View style={{ width: 56 }} />
+                </View>
 
-              {/* Listing summary */}
-              <View style={styles.offerSummary}>
-                <Text style={styles.offerBrand}>{offerTarget.brand}</Text>
-                <Text style={styles.offerOriginal}>Face value {formatCurrency(offerTarget.original_value)}</Text>
-                {offerTarget.listing_price === null ? (
-                  <View style={[styles.tradeSummaryBadge]}>
-                    <Text style={styles.tradeSummaryText}>🔄 Trade listing — no cash price</Text>
+                <ScrollView contentContainerStyle={styles.modalBody}>
+                  {offerError.length > 0 && (
+                    <View style={styles.inlineError}><Text style={styles.inlineErrorText}>⚠ {offerError}</Text></View>
+                  )}
+
+                  {/* Listing summary */}
+                  <View style={styles.offerSummary}>
+                    <Text style={styles.offerBrand}>{offerTarget.brand}</Text>
+                    <Text style={styles.offerOriginal}>Face value {formatCurrency(offerTarget.original_value)}</Text>
+                    {lt === 'trade' && (
+                      <View style={styles.tradeSummaryBadge}>
+                        <Text style={styles.tradeSummaryText}>🔄 Trade listing — no cash price</Text>
+                      </View>
+                    )}
+                    {lt === 'both' && (
+                      <View style={[styles.tradeSummaryBadge, { backgroundColor: colors.secondary + '15', borderColor: colors.secondary }]}>
+                        <Text style={[styles.tradeSummaryText, { color: colors.secondary }]}>🤝 Open to cash or voucher trade</Text>
+                      </View>
+                    )}
+                    {lt === 'sale' && offerTarget.listing_price && (
+                      <Text style={styles.offerListing}>Listed at {formatCurrency(offerTarget.listing_price)}</Text>
+                    )}
                   </View>
-                ) : (
-                  <Text style={styles.offerListing}>Listed at {formatCurrency(offerTarget.listing_price)}</Text>
-                )}
-              </View>
 
-              {/* ── TRADE: voucher picker ── */}
-              {offerTarget.listing_price === null ? (
-                <>
-                  <Text style={styles.inputLabel}>Select a voucher to offer in exchange:</Text>
-                  {vouchers.filter((v) => v.status === 'active').length === 0 ? (
-                    <View style={styles.tradeEmpty}>
-                      <Text style={styles.tradeEmptyText}>
-                        You have no active vouchers to trade. Add vouchers to your wallet first.
+                  {/* ── PRICE INPUT (sale / both) ── */}
+                  {showPrice && (
+                    <>
+                      <Text style={styles.inputLabel}>
+                        {lt === 'both' ? '💰 Cash Offer (optional)' : 'Your Offer (₪)'}
                       </Text>
-                    </View>
-                  ) : (
-                    vouchers
-                      .filter((v) => v.status === 'active')
-                      .map((v) => (
-                        <TouchableOpacity
-                          key={v.id}
-                          style={[
-                            styles.pickCard,
-                            selectedTradeVoucher?.id === v.id && styles.pickCardSelected,
-                          ]}
-                          onPress={() => setSelectedTradeVoucher(v)}
-                        >
-                          <View style={styles.pickCardInfo}>
-                            <Text style={styles.pickCardBrand}>{v.brand}</Text>
-                            <Text style={styles.pickCardVal}>{formatCurrency(v.remaining_value)} remaining</Text>
-                            {v.voucher_type === 'digital' && (
-                              <Text style={styles.pickCardType}>⚡ Digital — instant transfer</Text>
-                            )}
-                            {v.voucher_type === 'physical' && (
-                              <Text style={[styles.pickCardType, { color: colors.warning }]}>🤝 Physical — coordination needed</Text>
-                            )}
-                          </View>
-                          {selectedTradeVoucher?.id === v.id && <Text style={styles.pickCheck}>✓</Text>}
-                        </TouchableOpacity>
-                      ))
+                      <TextInput
+                        style={styles.offerInput}
+                        placeholder={`e.g. ${Math.round((offerTarget.listing_price ?? offerTarget.original_value) * 0.9)}`}
+                        placeholderTextColor={colors.textMuted}
+                        keyboardType="decimal-pad"
+                        value={offerAmount}
+                        onChangeText={setOfferAmount}
+                        autoFocus={lt === 'sale'}
+                      />
+                      {offerAmount.length > 0 && !isNaN(parseFloat(offerAmount)) && parseFloat(offerAmount) > 0 && (
+                        <Text style={styles.savingsHint}>
+                          You save {formatCurrency(offerTarget.original_value - parseFloat(offerAmount))} vs face value
+                        </Text>
+                      )}
+                    </>
                   )}
-                </>
-              ) : (
-                /* ── SALE: price input ── */
-                <>
-                  <Text style={styles.inputLabel}>Your Offer (₪)</Text>
-                  <TextInput
-                    style={styles.offerInput}
-                    placeholder={`e.g. ${Math.round((offerTarget.listing_price ?? offerTarget.original_value) * 0.9)}`}
-                    placeholderTextColor={colors.textMuted}
-                    keyboardType="decimal-pad"
-                    value={offerAmount}
-                    onChangeText={setOfferAmount}
-                    autoFocus
-                  />
-                  {offerAmount.length > 0 && !isNaN(parseFloat(offerAmount)) && (
-                    <Text style={styles.savingsHint}>
-                      You save {formatCurrency(offerTarget.original_value - parseFloat(offerAmount))} vs face value
-                    </Text>
-                  )}
-                </>
-              )}
 
-              <Text style={styles.inputLabel}>Message (optional)</Text>
-              <TextInput
-                style={[styles.offerInput, styles.messageInput]}
-                placeholder={
-                  offerTarget.listing_price === null
-                    ? 'Tell the seller why your voucher is a good match...'
-                    : 'Hi, I\'m interested in this voucher...'
-                }
-                placeholderTextColor={colors.textMuted}
-                multiline
-                numberOfLines={3}
-                value={offerMessage}
-                onChangeText={setOfferMessage}
-              />
-              <TouchableOpacity
-                style={[styles.submitButton, offerLoading && { opacity: 0.7 }]}
-                onPress={submitOffer}
-                disabled={offerLoading}
-              >
-                {offerLoading
-                  ? <ActivityIndicator color={colors.white} />
-                  : <Text style={styles.submitText}>
-                      {offerTarget.listing_price === null ? 'Propose Trade' : 'Send Offer'}
-                    </Text>}
-              </TouchableOpacity>
-              <Text style={styles.disclaimer}>
-                {offerTarget.listing_price === null
-                  ? 'The seller will review your voucher and respond.'
-                  : 'Payment only happens after both sides agree.'}
-              </Text>
-            </ScrollView>
-          )}
+                  {/* ── VOUCHER PICKER (trade / both) ── */}
+                  {showVoucher && (
+                    <>
+                      <Text style={styles.inputLabel}>
+                        {lt === 'both' ? '🔄 Voucher to Trade (optional)' : 'Select a voucher to offer in exchange:'}
+                      </Text>
+                      {vouchers.filter((v) => v.status === 'active' && !v.is_listed).length === 0 ? (
+                        <View style={styles.tradeEmpty}>
+                          <Text style={styles.tradeEmptyText}>
+                            You have no unlisted active vouchers to trade.
+                          </Text>
+                        </View>
+                      ) : (
+                        vouchers
+                          .filter((v) => v.status === 'active' && !v.is_listed)
+                          .map((v) => (
+                            <TouchableOpacity
+                              key={v.id}
+                              style={[styles.pickCard, selectedTradeVoucher?.id === v.id && styles.pickCardSelected]}
+                              onPress={() => setSelectedTradeVoucher(selectedTradeVoucher?.id === v.id ? null : v)}
+                            >
+                              <View style={styles.pickCardInfo}>
+                                <Text style={styles.pickCardBrand}>{v.brand}</Text>
+                                <Text style={styles.pickCardVal}>{formatCurrency(v.remaining_value)} remaining</Text>
+                                {v.voucher_type === 'digital' && (
+                                  <Text style={styles.pickCardType}>⚡ Digital — instant transfer</Text>
+                                )}
+                                {v.voucher_type === 'physical' && (
+                                  <Text style={[styles.pickCardType, { color: colors.warning }]}>🤝 Physical — coordination needed</Text>
+                                )}
+                              </View>
+                              {selectedTradeVoucher?.id === v.id && <Text style={styles.pickCheck}>✓</Text>}
+                            </TouchableOpacity>
+                          ))
+                      )}
+                    </>
+                  )}
+
+                  <Text style={styles.inputLabel}>Message (optional)</Text>
+                  <TextInput
+                    style={[styles.offerInput, styles.messageInput]}
+                    placeholder={showVoucher ? 'Tell the seller why your voucher is a good match...' : 'Hi, I\'m interested in this voucher...'}
+                    placeholderTextColor={colors.textMuted}
+                    multiline
+                    numberOfLines={3}
+                    value={offerMessage}
+                    onChangeText={setOfferMessage}
+                  />
+
+                  <TouchableOpacity
+                    style={[styles.submitButton, offerLoading && { opacity: 0.7 }]}
+                    onPress={submitOffer}
+                    disabled={offerLoading}
+                  >
+                    {offerLoading
+                      ? <ActivityIndicator color={colors.white} />
+                      : <Text style={styles.submitText}>
+                          {lt === 'trade' ? 'Propose Trade' : 'Send Offer'}
+                        </Text>}
+                  </TouchableOpacity>
+                  <Text style={styles.disclaimer}>
+                    {lt === 'trade'
+                      ? 'The seller will review your voucher and respond.'
+                      : lt === 'both'
+                      ? 'You can offer cash, a voucher, or both. Payment only after both sides agree.'
+                      : 'Payment only happens after both sides agree.'}
+                  </Text>
+                </ScrollView>
+              </>
+            );
+          })()}
         </KeyboardAvoidingView>
       </Modal>
 

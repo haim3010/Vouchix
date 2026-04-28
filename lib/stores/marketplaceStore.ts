@@ -45,7 +45,7 @@ interface MarketplaceState {
   fetchListings: () => Promise<void>;
   fetchMyOffers: (userId: string) => Promise<void>;
   fetchIncomingOffers: (userId: string) => Promise<void>;
-  makeOffer: (voucherId: string, buyerId: string, amount: number, message?: string) => Promise<void>;
+  makeOffer: (voucherId: string, buyerId: string, amount: number, message?: string, tradeBrand?: string, tradeValue?: number) => Promise<void>;
   respondToOffer: (offerId: string, status: 'accepted' | 'rejected') => Promise<void>;
   completeOffer: (offerId: string) => Promise<void>;
   cancelOffer: (offerId: string) => Promise<void>;
@@ -141,10 +141,17 @@ export const useMarketplaceStore = create<MarketplaceState>((set, get) => ({
     } catch { /* non-critical */ }
   },
 
-  makeOffer: async (voucherId, buyerId, amount, message) => {
+  makeOffer: async (voucherId, buyerId, amount, message, tradeBrand, tradeValue) => {
     const { data, error } = await supabase
       .from('offers')
-      .insert({ voucher_id: voucherId, buyer_id: buyerId, offer_amount: amount, message: message ?? null })
+      .insert({
+        voucher_id: voucherId,
+        buyer_id: buyerId,
+        offer_amount: amount,
+        message: message ?? null,
+        trade_brand: tradeBrand ?? null,
+        trade_value: tradeValue ?? null,
+      })
       .select(`
         *,
         buyer:profiles!offers_buyer_id_fkey(id, display_name, rating, total_trades),

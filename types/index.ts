@@ -1,4 +1,5 @@
 export type VoucherStatus = 'active' | 'used' | 'expired' | 'sold';
+export type ListingType = 'sale' | 'trade' | 'both';
 export type BarcodeFormat = 'QR' | 'CODE128' | 'EAN13' | 'EAN8' | 'CODE39' | 'OTHER';
 export type OfferStatus = 'pending' | 'accepted' | 'rejected' | 'cancelled' | 'completed';
 export type NotificationType = 'offer_received' | 'offer_accepted' | 'expiring_soon' | 'sale_complete';
@@ -49,6 +50,7 @@ export interface Voucher {
   notes: string | null;
   is_listed: boolean;
   listing_price: number | null;
+  listing_type: ListingType | null;
   status: VoucherStatus;
   classification: VoucherClassification | null;
   category: VoucherCategory | null;
@@ -63,6 +65,8 @@ export interface Offer {
   buyer_id: string;
   offer_amount: number;
   message: string | null;
+  trade_brand: string | null;
+  trade_value: number | null;
   status: OfferStatus;
   created_at: string;
   updated_at: string;
