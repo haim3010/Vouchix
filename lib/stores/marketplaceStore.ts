@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { supabase } from '@/lib/supabase';
 import { Voucher, Offer } from '@/types';
 
+function formatCurrencyRaw(n: number) { return `₪${n.toFixed(2)}`; }
+
 function extractMsg(e: unknown, fallback: string): string {
   if (typeof e === 'string') return e;
   if (e && typeof e === 'object') {
@@ -142,22 +144,37 @@ export const useMarketplaceStore = create<MarketplaceState>((set, get) => ({
   },
 
   makeOffer: async (voucherId, buyerId, amount, message, tradeBrand, tradeValue) => {
+    const selectQuery = `
+      *,
+      buyer:profiles!offers_buyer_id_fkey(id, display_name, rating, total_trades),
+      voucher:vouchers!offers_voucher_id_fkey(brand, original_value, listing_price)
+    `;
+
+    // Always encode trade info in message so it's visible even without extra columns
+    const tradePrefix = tradeBrand
+      ? `🔄 Trade: ${tradeBrand} (${formatCurrencyRaw(tradeValue ?? 0)} value)\n`
+      : '';
+    const fullMessage = (tradePrefix + (message ?? '')).trim() || null;
+
+    // Try with trade columns (if SQL migration has been run)
+    if (tradeBrand) {
+      const { data, error } = await supabase
+        .from('offers')
+        .insert({ voucher_id: voucherId, buyer_id: buyerId, offer_amount: amount,
+          message: fullMessage, trade_brand: tradeBrand, trade_value: tradeValue ?? null })
+        .select(selectQuery).single();
+      if (!error) {
+        set((state) => ({ myOffers: [data as OfferWithBuyer, ...state.myOffers] }));
+        return;
+      }
+      // Columns might not exist yet — fall through to message-only insert
+    }
+
+    // Fallback: insert without trade columns, trade info is in message
     const { data, error } = await supabase
       .from('offers')
-      .insert({
-        voucher_id: voucherId,
-        buyer_id: buyerId,
-        offer_amount: amount,
-        message: message ?? null,
-        trade_brand: tradeBrand ?? null,
-        trade_value: tradeValue ?? null,
-      })
-      .select(`
-        *,
-        buyer:profiles!offers_buyer_id_fkey(id, display_name, rating, total_trades),
-        voucher:vouchers!offers_voucher_id_fkey(brand, original_value, listing_price)
-      `)
-      .single();
+      .insert({ voucher_id: voucherId, buyer_id: buyerId, offer_amount: amount, message: fullMessage })
+      .select(selectQuery).single();
     if (error) throw new Error(extractMsg(error, 'Failed to send offer'));
     set((state) => ({ myOffers: [data as OfferWithBuyer, ...state.myOffers] }));
   },

@@ -55,6 +55,7 @@ export default function MessagesScreen() {
   const [profileUserId, setProfileUserId] = useState<string | null>(null);
   const [showCounterInput, setShowCounterInput] = useState(false);
   const [counterAmount, setCounterAmount] = useState('');
+  const [showCompleteConfirm, setShowCompleteConfirm] = useState(false);
 
   const flatListRef = useRef<FlatList<ChatMessage>>(null);
   const unsubRef = useRef<(() => void) | null>(null);
@@ -108,6 +109,7 @@ export default function MessagesScreen() {
     try {
       await completeOffer(currentConversation.offer_id);
       updateConversationStatus(currentConversation.offer_id, 'completed');
+      setShowCompleteConfirm(false);
     } catch {
       setActionError('Failed to mark as completed. Try again.');
     } finally {
@@ -165,6 +167,7 @@ export default function MessagesScreen() {
     setActionError('');
     setShowCounterInput(false);
     setCounterAmount('');
+    setShowCompleteConfirm(false);
   }
 
   // ── Split conversations by role ──────────────────────────────────────────
@@ -343,19 +346,54 @@ export default function MessagesScreen() {
           </View>
         )}
 
-        {/* ── Offer actions ── */}
-        {showActions && !showCounterInput && (
-          <View style={styles.offerActions}>
-            {/* SELLER: complete */}
-            {canComplete && (
+        {/* ── Complete confirmation card (low-price warning) ── */}
+        {showCompleteConfirm && canComplete && (
+          <View style={styles.completeConfirmCard}>
+            {conv.offer_amount < conv.voucher_original_value && (
+              <View style={styles.lowPriceWarning}>
+                <Text style={styles.lowPriceWarningText}>
+                  ⚠ This offer ({formatCurrency(conv.offer_amount)}) is below the face value
+                  ({formatCurrency(conv.voucher_original_value)}).
+                  Make sure you've received your payment before completing.
+                </Text>
+              </View>
+            )}
+            <Text style={styles.completeConfirmTitle}>Complete this deal?</Text>
+            <Text style={styles.completeConfirmSub}>
+              Final amount: <Text style={{ fontWeight: '800', color: colors.success }}>{formatCurrency(conv.offer_amount)}</Text>
+              {conv.trade_brand ? ` + 🔄 ${conv.trade_brand}` : ''}
+            </Text>
+            <View style={styles.offerActions}>
               <TouchableOpacity
-                style={[styles.actionBtn, styles.actionBtnComplete]}
+                style={[styles.actionBtn, { backgroundColor: colors.cardBg, borderColor: colors.border, flex: 0.8 }]}
+                onPress={() => setShowCompleteConfirm(false)}
+              >
+                <Text style={[styles.actionBtnText, { color: colors.textMuted }]}>Back</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.actionBtn, styles.actionBtnComplete, { flex: 1.2 }]}
                 onPress={handleComplete}
                 disabled={actionLoading}
               >
                 {actionLoading
                   ? <ActivityIndicator color={colors.white} size="small" />
-                  : <Text style={styles.actionBtnText}>✓ Mark as Completed</Text>}
+                  : <Text style={styles.actionBtnText}>✓ Yes, Complete</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* ── Offer actions ── */}
+        {showActions && !showCounterInput && !showCompleteConfirm && (
+          <View style={styles.offerActions}>
+            {/* SELLER: complete — shows confirmation first */}
+            {canComplete && (
+              <TouchableOpacity
+                style={[styles.actionBtn, styles.actionBtnComplete]}
+                onPress={() => { setActionError(''); setShowCompleteConfirm(true); }}
+                disabled={actionLoading}
+              >
+                <Text style={styles.actionBtnText}>✓ Mark as Completed</Text>
               </TouchableOpacity>
             )}
             {/* BUYER: counter + cancel */}
@@ -716,6 +754,27 @@ const styles = StyleSheet.create({
   actionBtnCancel: { backgroundColor: colors.cardBg, borderColor: colors.error },
   actionBtnCounter: { backgroundColor: colors.secondary, borderColor: colors.secondary },
   actionBtnText: { color: colors.white, fontWeight: '700', fontSize: fontSizes.sm },
+
+  // Complete confirmation
+  completeConfirmCard: {
+    backgroundColor: colors.bgLight,
+    borderWidth: 1,
+    borderColor: colors.success,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    gap: spacing.sm,
+  },
+  completeConfirmTitle: { fontSize: fontSizes.md, fontWeight: '800', color: colors.text },
+  completeConfirmSub: { fontSize: fontSizes.sm, color: colors.textMuted },
+  lowPriceWarning: {
+    backgroundColor: colors.error + '15',
+    borderRadius: radius.md,
+    padding: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.error,
+  },
+  lowPriceWarningText: { color: colors.error, fontSize: fontSizes.xs, fontWeight: '600', lineHeight: 18 },
 
   // Counter-offer input
   counterInputWrap: {
