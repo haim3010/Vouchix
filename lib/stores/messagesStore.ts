@@ -69,17 +69,6 @@ export const useMessagesStore = create<MessagesState>((set, get) => ({
         .eq('buyer_id', userId)
         .order('updated_at', { ascending: false });
 
-      // Offers received on my vouchers (as seller)
-      const { data: sellerOffers } = await supabase
-        .from('offers')
-        .select(`
-          id, status, offer_amount, message, updated_at, voucher_id,
-          buyer:profiles!offers_buyer_id_fkey(id, display_name),
-          voucher:vouchers!offers_voucher_id_fkey(id, brand, original_value, owner_id)
-        `)
-        .eq('vouchers.owner_id', userId)
-        .order('updated_at', { ascending: false });
-
       // Also get seller offers by checking voucher ownership
       const { data: myVouchersOffers } = await supabase
         .from('vouchers')
