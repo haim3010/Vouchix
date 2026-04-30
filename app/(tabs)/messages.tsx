@@ -19,9 +19,11 @@ import { useAuthStore } from '@/lib/stores/authStore';
 import { useMessagesStore, Conversation, ChatMessage } from '@/lib/stores/messagesStore';
 import { useMarketplaceStore } from '@/lib/stores/marketplaceStore';
 import UserProfileModal from '@/components/UserProfileModal';
+import RatingModal from '@/components/RatingModal';
 import AppHeader from '@/components/AppHeader';
 import { colors, spacing, radius, fontSizes } from '@/lib/constants/theme';
 import { formatCurrency } from '@/lib/utils/currency';
+import { useT } from '@/lib/i18n';
 
 const STATUS_COLOR: Record<string, string> = {
   pending:   colors.warning,
@@ -58,6 +60,8 @@ export default function MessagesScreen() {
   const [counterAmount, setCounterAmount] = useState('');
   const [counterRole, setCounterRole] = useState<'buyer' | 'seller'>('buyer');
   const [showCompleteConfirm, setShowCompleteConfirm] = useState(false);
+  const [ratingTarget, setRatingTarget] = useState<{ userId: string; name: string } | null>(null);
+  const t = useT();
 
   const flatListRef = useRef<FlatList<ChatMessage>>(null);
   const unsubRef = useRef<(() => void) | null>(null);
@@ -112,6 +116,11 @@ export default function MessagesScreen() {
       await completeOffer(currentConversation.offer_id);
       updateConversationStatus(currentConversation.offer_id, 'completed');
       setShowCompleteConfirm(false);
+      // Trigger rating modal — seller rates the buyer
+      setRatingTarget({
+        userId: currentConversation.other_user_id,
+        name:   currentConversation.other_user_name,
+      });
     } catch {
       setActionError('Failed to mark as completed. Try again.');
     } finally {
@@ -693,6 +702,14 @@ export default function MessagesScreen() {
       <UserProfileModal
         userId={profileUserId}
         onClose={() => setProfileUserId(null)}
+      />
+
+      {/* ══ RATING MODAL — opens after deal completion ══ */}
+      <RatingModal
+        visible={!!ratingTarget}
+        partnerUserId={ratingTarget?.userId ?? ''}
+        partnerName={ratingTarget?.name ?? ''}
+        onClose={() => setRatingTarget(null)}
       />
     </View>
   );

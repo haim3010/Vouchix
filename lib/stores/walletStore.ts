@@ -72,9 +72,15 @@ export const useWalletStore = create<WalletState>((set) => ({
 
   updateVoucher: async (id: string, updates: Partial<Voucher>) => {
     try {
+      // When a voucher is marked used or sold, auto-delist it from the marketplace
+      const autoDelistPatch =
+        updates.status === 'used' || updates.status === 'sold'
+          ? { is_listed: false, listing_price: null }
+          : {};
+
       const { data, error } = await supabase
         .from('vouchers')
-        .update({ ...updates, updated_at: new Date().toISOString() })
+        .update({ ...updates, ...autoDelistPatch, updated_at: new Date().toISOString() })
         .eq('id', id)
         .select()
         .single();

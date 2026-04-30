@@ -2,6 +2,7 @@ import { Tabs } from 'expo-router';
 import { View, Text, StyleSheet } from 'react-native';
 import { colors } from '@/lib/constants/theme';
 import { useMessagesStore } from '@/lib/stores/messagesStore';
+import { useT } from '@/lib/i18n';
 
 function TabIcon({ emoji, label, focused, badge }: { emoji: string; label: string; focused: boolean; badge?: number }) {
   return (
@@ -21,7 +22,7 @@ function TabIcon({ emoji, label, focused, badge }: { emoji: string; label: strin
 
 export default function TabsLayout() {
   const conversations = useMessagesStore((s) => s.conversations);
-  // Badge = pending conversations (offers awaiting seller action)
+  const t = useT();
   const pendingConvs = conversations.filter((c) => c.offer_status === 'pending' && c.is_seller).length;
 
   return (
@@ -35,13 +36,13 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="wallet"
         options={{
-          tabBarIcon: ({ focused }) => <TabIcon emoji="👜" label="Wallet" focused={focused} />,
+          tabBarIcon: ({ focused }) => <TabIcon emoji="👜" label={t('wallet')} focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="marketplace"
         options={{
-          tabBarIcon: ({ focused }) => <TabIcon emoji="🏪" label="Market" focused={focused} />,
+          tabBarIcon: ({ focused }) => <TabIcon emoji="🏪" label={t('market')} focused={focused} />,
         }}
       />
       <Tabs.Screen
@@ -50,7 +51,7 @@ export default function TabsLayout() {
           tabBarIcon: ({ focused }) => (
             <TabIcon
               emoji="🤝"
-              label="Offers"
+              label={t('offers')}
               focused={focused}
               badge={pendingConvs > 0 ? pendingConvs : undefined}
             />
@@ -61,14 +62,14 @@ export default function TabsLayout() {
         name="notifications"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon emoji="🕐" label="History" focused={focused} />
+            <TabIcon emoji="🕐" label={t('history')} focused={focused} />
           ),
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
-          tabBarIcon: ({ focused }) => <TabIcon emoji="👤" label="Profile" focused={focused} />,
+          tabBarIcon: ({ focused }) => <TabIcon emoji="👤" label={t('profile')} focused={focused} />,
         }}
       />
     </Tabs>

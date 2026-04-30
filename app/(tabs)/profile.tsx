@@ -15,6 +15,7 @@ import * as ImagePicker from 'expo-image-picker';
 import Svg, { Path, Circle, Defs, LinearGradient, Stop, Text as SvgText } from 'react-native-svg';
 import { useAuthStore } from '@/lib/stores/authStore';
 import { useWalletStore } from '@/lib/stores/walletStore';
+import { useLanguageStore, useT } from '@/lib/i18n';
 import { colors, spacing, radius, fontSizes } from '@/lib/constants/theme';
 import { formatCurrency } from '@/lib/utils/currency';
 import AppHeader from '@/components/AppHeader';
@@ -80,6 +81,8 @@ function TradeHistoryChart({ vouchers }: { vouchers: { created_at: string; origi
 export default function ProfileScreen() {
   const { user, profile, signOut } = useAuthStore();
   const { vouchers } = useWalletStore();
+  const { language, setLanguage } = useLanguageStore();
+  const t = useT();
 
   const [signingOut, setSigningOut] = useState(false);
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
@@ -217,9 +220,32 @@ export default function ProfileScreen() {
           </View>
         </View>
 
+        {/* Language switcher */}
+        <View style={styles.languageCard}>
+          <Text style={styles.languageLabel}>🌐 {t('language')}</Text>
+          <View style={styles.languageBtns}>
+            <TouchableOpacity
+              style={[styles.langBtn, language === 'he' && styles.langBtnActive]}
+              onPress={() => setLanguage('he')}
+            >
+              <Text style={[styles.langBtnText, language === 'he' && styles.langBtnTextActive]}>
+                🇮🇱 עברית
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.langBtn, language === 'en' && styles.langBtnActive]}
+              onPress={() => setLanguage('en')}
+            >
+              <Text style={[styles.langBtnText, language === 'en' && styles.langBtnTextActive]}>
+                🇬🇧 English
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* Menu */}
         <View style={styles.menuCard}>
-          <MenuItem emoji="💳" label="Payment Methods" onPress={() => { setPaymentError(''); setPaymentSaved(false); setOpenModal('payment'); }} />
+          <MenuItem emoji="💳" label={t('paymentMethods')} onPress={() => { setPaymentError(''); setPaymentSaved(false); setOpenModal('payment'); }} />
           <View style={styles.divider} />
           <MenuItem emoji="📊" label="Trade History" onPress={() => setOpenModal('history')} />
           <View style={styles.divider} />
@@ -235,7 +261,7 @@ export default function ProfileScreen() {
         >
           {signingOut
             ? <ActivityIndicator color={colors.error} />
-            : <Text style={styles.signOutText}>Sign Out</Text>}
+            : <Text style={styles.signOutText}>{t('logout')}</Text>}
         </TouchableOpacity>
         <Text style={styles.version}>VouchiX v1.0.0</Text>
       </ScrollView>
@@ -609,6 +635,51 @@ const styles = StyleSheet.create({
   toggleLabels: { flex: 1 },
   toggleLabel: { fontSize: fontSizes.md, color: colors.text, fontWeight: '600' },
   toggleSub: { fontSize: fontSizes.xs, color: colors.textMuted, marginTop: 2 },
+
+  languageCard: {
+    backgroundColor: colors.cardBg,
+    borderRadius: radius.lg,
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.md,
+    padding: spacing.md,
+    gap: spacing.sm,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  languageLabel: {
+    fontSize: fontSizes.sm,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  languageBtns: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  langBtn: {
+    flex: 1,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingVertical: spacing.sm,
+    alignItems: 'center',
+    backgroundColor: colors.bgLight,
+  },
+  langBtnActive: {
+    borderColor: colors.accent,
+    backgroundColor: colors.accent + '15',
+  },
+  langBtnText: {
+    fontSize: fontSizes.sm,
+    fontWeight: '600',
+    color: colors.textMuted,
+  },
+  langBtnTextActive: {
+    color: colors.accent,
+    fontWeight: '800',
+  },
 
   signOutButton: {
     backgroundColor: colors.cardBg,
