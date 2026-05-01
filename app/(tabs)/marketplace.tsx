@@ -15,6 +15,7 @@ import {
 import { useEffect, useState, useMemo } from 'react';
 import { useMarketplaceStore, ListingWithSeller } from '@/lib/stores/marketplaceStore';
 import { useAuthStore } from '@/lib/stores/authStore';
+import { useT } from '@/lib/i18n';
 import { useWalletStore } from '@/lib/stores/walletStore';
 import VoucherListing from '@/components/VoucherListing';
 import UserProfileModal from '@/components/UserProfileModal';
@@ -75,6 +76,7 @@ function getTransferabilityInfo(voucher: Voucher): { label: string; level: 'ok' 
 export default function MarketplaceScreen() {
   const { user } = useAuthStore();
   const { listings, loading, fetchListings, makeOffer } = useMarketplaceStore();
+  const t = useT();
   const { vouchers, updateVoucher, deleteVoucher, fetchVouchers } = useWalletStore();
 
   // ── Seller profile modal ──
@@ -467,10 +469,10 @@ export default function MarketplaceScreen() {
 
   return (
     <View style={styles.container}>
-      <AppHeader subtitle="Buy, sell & trade vouchers" />
+      <AppHeader subtitle={t('buyAndSell')} />
 
       <View style={styles.header}>
-        <Text style={styles.title}>Marketplace</Text>
+        <Text style={styles.title}>{t('marketplace')}</Text>
         <Text style={styles.subtitle}>
           {mode === 'global'
             ? `${listings.length} voucher${listings.length !== 1 ? 's' : ''} listed`
@@ -486,7 +488,7 @@ export default function MarketplaceScreen() {
             onPress={() => setMode('global')}
           >
             <Text style={[styles.modeBtnText, mode === 'global' && styles.modeBtnTextActive]}>
-              🌍 Global Market
+              {t('globalMarket')}
             </Text>
             <View style={[styles.modeBadge, mode === 'global' && styles.modeBadgeActive]}>
               <Text style={[styles.modeBadgeText, mode === 'global' && styles.modeBadgeTextActive]}>
@@ -499,7 +501,7 @@ export default function MarketplaceScreen() {
             onPress={() => setMode('my')}
           >
             <Text style={[styles.modeBtnText, mode === 'my' && styles.modeBtnTextActive]}>
-              🏷️ My Market
+              {t('myMarket')}
             </Text>
             <View style={[styles.modeBadge, mode === 'my' && styles.modeBadgeActive]}>
               <Text style={[styles.modeBadgeText, mode === 'my' && styles.modeBadgeTextActive]}>

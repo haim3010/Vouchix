@@ -16,6 +16,7 @@ import { useMessagesStore } from '@/lib/stores/messagesStore';
 import { colors, spacing, radius, fontSizes } from '@/lib/constants/theme';
 import { formatCurrency } from '@/lib/utils/currency';
 import AppHeader from '@/components/AppHeader';
+import { useT } from '@/lib/i18n';
 
 type Section = 'completed' | 'cancelled' | 'used' | 'expired' | null;
 type DealFilter = 'all' | 'sales' | 'purchases';
@@ -24,6 +25,7 @@ export default function HistoryScreen() {
   const { user } = useAuthStore();
   const { vouchers, fetchVouchers, deleteVoucher } = useWalletStore();
   const { conversations, fetchConversations } = useMessagesStore();
+  const t = useT();
 
   const [openSection, setOpenSection] = useState<Section>(null);
   const [dealFilter, setDealFilter] = useState<DealFilter>('all');
@@ -115,9 +117,9 @@ export default function HistoryScreen() {
   function renderDealCard(deal: typeof completedDeals[number]) {
     const isCancelled = ['rejected', 'cancelled', 'refunded'].includes(deal.offer_status);
     const statusLabel =
-      deal.offer_status === 'completed' ? 'Completed ✓' :
-      deal.offer_status === 'rejected'  ? 'Declined'    :
-      deal.offer_status === 'refunded'  ? 'Refunded'    : 'Cancelled';
+      deal.offer_status === 'completed' ? t('dealCompleted') :
+      deal.offer_status === 'rejected'  ? t('dealDeclined')  :
+      deal.offer_status === 'refunded'  ? t('dealRefunded')  : t('dealCancelled');
     const statusColor =
       deal.offer_status === 'completed' ? colors.success :
       deal.offer_status === 'refunded'  ? colors.warning  :
@@ -130,7 +132,7 @@ export default function HistoryScreen() {
           <View style={styles.dealInfo}>
             <Text style={styles.dealBrand}>{deal.voucher_brand}</Text>
             <Text style={styles.dealRole}>
-              {deal.is_seller ? '🏷 מכרת' : '🛒 קנית'} · {deal.other_user_name}
+              {deal.is_seller ? t('iSoldRole') : t('iBoughtRole')} · {deal.other_user_name}
             </Text>
           </View>
           <View style={[styles.dealStatusBadge, { backgroundColor: statusColor + '20' }]}>
@@ -141,7 +143,7 @@ export default function HistoryScreen() {
         <View style={styles.dealPrices}>
           <View style={styles.dealPriceItem}>
             <Text style={styles.dealPriceLabel}>
-              {deal.is_seller ? 'קיבלת' : 'שילמת'}
+              {deal.is_seller ? t('received') : t('paid')}
             </Text>
             <Text style={[styles.dealPriceValue, { color: deal.is_seller ? colors.success : colors.secondary }]}>
               {formatCurrency(deal.offer_amount)}
@@ -149,14 +151,14 @@ export default function HistoryScreen() {
           </View>
           <View style={styles.dealPriceDivider} />
           <View style={styles.dealPriceItem}>
-            <Text style={styles.dealPriceLabel}>שווי מקורי</Text>
+            <Text style={styles.dealPriceLabel}>{t('originalValue')}</Text>
             <Text style={styles.dealPriceOriginal}>{formatCurrency(deal.voucher_original_value)}</Text>
           </View>
           {!deal.is_seller && !isCancelled && saved > 0 && (
             <>
               <View style={styles.dealPriceDivider} />
               <View style={styles.dealPriceItem}>
-                <Text style={styles.dealPriceLabel}>חסכת</Text>
+                <Text style={styles.dealPriceLabel}>{t('saved')}</Text>
                 <Text style={[styles.dealPriceValue, { color: colors.success }]}>{formatCurrency(saved)}</Text>
               </View>
             </>
@@ -172,13 +174,13 @@ export default function HistoryScreen() {
 
   return (
     <View style={styles.container}>
-      <AppHeader subtitle="היסטוריית הווצ'רים והעסקאות שלך" />
+      <AppHeader subtitle={completedDeals.length > 0 ? `${completedDeals.length} ${t('historySubtitleDeals')}${savedTotal > 0 ? ` · ${t('historySubtitleSaved')} ${formatCurrency(savedTotal)}` : ''}` : t('historySubtitleEmpty')} />
       <View style={styles.header}>
-        <Text style={styles.title}>היסטוריה</Text>
+        <Text style={styles.title}>{t('historyTitle')}</Text>
         <Text style={styles.subtitle}>
           {completedDeals.length > 0
-            ? `${completedDeals.length} עסקאות סגורות${savedTotal > 0 ? ` · חסכת ${formatCurrency(savedTotal)}` : ''}`
-            : 'עסקאות שנסגרו ווצ׳רים בשימוש'}
+            ? `${completedDeals.length} ${t('historySubtitleDeals')}${savedTotal > 0 ? ` · ${t('historySubtitleSaved')} ${formatCurrency(savedTotal)}` : ''}`
+            : t('historySubtitleEmpty')}
         </Text>
       </View>
 
@@ -194,7 +196,7 @@ export default function HistoryScreen() {
           {/* ══ עסקאות מושלמות ══ */}
           <View style={styles.accordionCard}>
             {renderSectionHeader(
-              'completed', '✅', 'עסקאות מושלמות', completedDeals.length,
+              'completed', '✅', t('completedDeals'), completedDeals.length,
               completedDeals.length > 0 ? `${completedDeals.length}` : undefined,
               colors.success,
             )}
@@ -205,18 +207,18 @@ export default function HistoryScreen() {
                 {completedDeals.length > 0 && (
                   <View style={styles.summaryRow}>
                     <View style={[styles.summaryBox, { borderColor: colors.success }]}>
-                      <Text style={styles.summaryLabel}>🏷 מכרתי</Text>
+                      <Text style={styles.summaryLabel}>{t('salesSummary')}</Text>
                       <Text style={[styles.summaryAmount, { color: colors.success }]}>
                         {formatCurrency(salesTotal)}
                       </Text>
-                      <Text style={styles.summaryCount}>{completedSales.length} עסקאות</Text>
+                      <Text style={styles.summaryCount}>{completedSales.length} {t('dealsWord')}</Text>
                     </View>
                     <View style={[styles.summaryBox, { borderColor: colors.secondary }]}>
-                      <Text style={styles.summaryLabel}>🛒 קניתי</Text>
+                      <Text style={styles.summaryLabel}>{t('purchasesSummary')}</Text>
                       <Text style={[styles.summaryAmount, { color: colors.secondary }]}>
                         {formatCurrency(purchasesTotal)}
                       </Text>
-                      <Text style={styles.summaryCount}>{completedPurchases.length} עסקאות</Text>
+                      <Text style={styles.summaryCount}>{completedPurchases.length} {t('dealsWord')}</Text>
                     </View>
                   </View>
                 )}
@@ -231,7 +233,7 @@ export default function HistoryScreen() {
                         onPress={() => setDealFilter(f)}
                       >
                         <Text style={[styles.filterChipText, dealFilter === f && styles.filterChipTextActive]}>
-                          {f === 'all' ? 'הכל' : f === 'sales' ? '🏷 מכירות' : '🛒 קניות'}
+                          {f === 'all' ? t('allDeals') : f === 'sales' ? t('salesDeals') : t('purchasesDeals')}
                         </Text>
                       </TouchableOpacity>
                     ))}
@@ -239,7 +241,7 @@ export default function HistoryScreen() {
                 )}
 
                 {filteredCompleted.length === 0 ? (
-                  <EmptyState emoji="✅" text="אין עסקאות מושלמות עדיין — לך למשא ומתן בטאב הצעות!" />
+                  <EmptyState emoji="✅" text={t('noCompletedDeals')} />
                 ) : (
                   filteredCompleted.map(renderDealCard)
                 )}
@@ -250,14 +252,14 @@ export default function HistoryScreen() {
           {/* ══ עסקאות מבוטלות ══ */}
           <View style={styles.accordionCard}>
             {renderSectionHeader(
-              'cancelled', '❌', 'עסקאות מבוטלות', cancelledDeals.length,
+              'cancelled', '❌', t('cancelledDeals'), cancelledDeals.length,
               cancelledDeals.length > 0 ? `${cancelledDeals.length}` : undefined,
               colors.error,
             )}
             {openSection === 'cancelled' && (
               <View style={styles.accordionBody}>
                 {cancelledDeals.length === 0 ? (
-                  <EmptyState emoji="👍" text="אין עסקאות מבוטלות" />
+                  <EmptyState emoji="👍" text={t('noCancelledDeals')} />
                 ) : (
                   cancelledDeals.map(renderDealCard)
                 )}
@@ -268,13 +270,13 @@ export default function HistoryScreen() {
           {/* ══ ווצ'רים בשימוש ══ */}
           <View style={styles.accordionCard}>
             {renderSectionHeader(
-              'used', '🎫', 'ווצ\'רים שנוצלו', usedVouchers.length,
+              'used', '🎫', t('usedVouchers'), usedVouchers.length,
               usedVouchers.length > 0 ? formatCurrency(usedTotal) : undefined, colors.success,
             )}
             {openSection === 'used' && (
               <View style={styles.accordionBody}>
                 {usedVouchers.length === 0 ? (
-                  <EmptyState emoji="🎫" text="אין ווצ'רים שנוצלו עדיין" />
+                  <EmptyState emoji="🎫" text={t('noUsedVouchers')} />
                 ) : (
                   usedVouchers.map((v) => (
                     <View key={v.id} style={styles.historyItem}>
@@ -289,7 +291,7 @@ export default function HistoryScreen() {
                           {formatCurrency(v.original_value)}
                         </Text>
                         <View style={[styles.historyBadge, { backgroundColor: colors.success + '20' }]}>
-                          <Text style={[styles.historyBadgeText, { color: colors.success }]}>נוצל</Text>
+                          <Text style={[styles.historyBadgeText, { color: colors.success }]}>{t('usedBadge')}</Text>
                         </View>
                         <TouchableOpacity
                           onPress={() => setDeleteTarget({ id: v.id, brand: v.brand })}
@@ -308,20 +310,20 @@ export default function HistoryScreen() {
           {/* ══ ווצ'רים פגי תוקף ══ */}
           <View style={styles.accordionCard}>
             {renderSectionHeader(
-              'expired', '⏰', 'ווצ\'רים פגי תוקף', expiredVouchers.length,
+              'expired', '⏰', t('expiredVouchers'), expiredVouchers.length,
               expiredVouchers.length > 0 ? formatCurrency(expiredTotal) + ' אבד' : undefined, colors.error,
             )}
             {openSection === 'expired' && (
               <View style={styles.accordionBody}>
                 {expiredVouchers.length === 0 ? (
-                  <EmptyState emoji="🎉" text="אין ווצ'רים פגי תוקף — כל הכבוד!" />
+                  <EmptyState emoji="🎉" text={t('noExpiredVouchers')} />
                 ) : (
                   expiredVouchers.map((v) => (
                     <View key={v.id} style={styles.historyItem}>
                       <View style={styles.historyItemLeft}>
                         <Text style={styles.historyBrand}>{v.brand}</Text>
                         <Text style={styles.historyDate}>
-                          פג תוקף {v.expires_at ? new Date(v.expires_at).toLocaleDateString('he-IL') : '—'}
+                          {t('expiredOn')} {v.expires_at ? new Date(v.expires_at).toLocaleDateString('he-IL') : '—'}
                         </Text>
                       </View>
                       <View style={styles.historyItemRight}>
@@ -329,7 +331,7 @@ export default function HistoryScreen() {
                           {formatCurrency(v.original_value)}
                         </Text>
                         <View style={[styles.historyBadge, { backgroundColor: colors.error + '20' }]}>
-                          <Text style={[styles.historyBadgeText, { color: colors.error }]}>פג</Text>
+                          <Text style={[styles.historyBadgeText, { color: colors.error }]}>{t('expiredBadge')}</Text>
                         </View>
                         <TouchableOpacity
                           onPress={() => setDeleteTarget({ id: v.id, brand: v.brand })}
@@ -352,7 +354,7 @@ export default function HistoryScreen() {
       <Modal visible={!!deleteTarget} transparent animationType="fade">
         <View style={styles.confirmOverlay}>
           <View style={styles.confirmBox}>
-            <Text style={styles.confirmTitle}>הסרה מהיסטוריה?</Text>
+            <Text style={styles.confirmTitle}>{t('removeFromHistory')}</Text>
             <Text style={styles.confirmSub}>
               מחיקה סופית של "{deleteTarget?.brand}" מההיסטוריה שלך. לא ניתן לשחזר.
             </Text>
@@ -362,7 +364,7 @@ export default function HistoryScreen() {
                 onPress={() => setDeleteTarget(null)}
                 disabled={deleteLoading}
               >
-                <Text style={styles.confirmCancelText}>ביטול</Text>
+                <Text style={styles.confirmCancelText}>{t('cancelAction')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.confirmAction, { backgroundColor: colors.error }]}
@@ -370,7 +372,7 @@ export default function HistoryScreen() {
                 disabled={deleteLoading}
               >
                 <Text style={styles.confirmActionText}>
-                  {deleteLoading ? 'מוחק…' : 'מחק'}
+                  {deleteLoading ? t('deleting') : t('deleteAction')}
                 </Text>
               </TouchableOpacity>
             </View>

@@ -9,23 +9,16 @@ export default function RootLayout() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      if (session?.user) {
-        fetchProfile(session.user.id);
-        router.replace('/(tabs)/wallet');
-      } else {
-        router.replace('/(auth)/login');
-      }
+      if (session?.user) fetchProfile(session.user.id);
+    }).catch(() => {
+      setSession(null);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
       if (session?.user) fetchProfile(session.user.id);
-      // Only navigate on actual sign-in/sign-out — NOT on TOKEN_REFRESHED or USER_UPDATED
-      if (event === 'SIGNED_IN') {
-        router.replace('/(tabs)/wallet');
-      } else if (event === 'SIGNED_OUT') {
-        router.replace('/(auth)/login');
-      }
+      if (event === 'SIGNED_IN') router.replace('/(tabs)/wallet');
+      else if (event === 'SIGNED_OUT') router.replace('/(auth)/login');
     });
 
     return () => subscription.unsubscribe();
@@ -33,6 +26,7 @@ export default function RootLayout() {
 
   return (
     <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="index" />
       <Stack.Screen name="(auth)" />
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="voucher/[id]" options={{ presentation: 'card' }} />

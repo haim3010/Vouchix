@@ -202,21 +202,21 @@ export default function ProfileScreen() {
         <View style={styles.statsGrid}>
           <View style={styles.statCard}>
             <Text style={styles.statValue}>{activeVouchers.length}</Text>
-            <Text style={styles.statLabel}>Active</Text>
+            <Text style={styles.statLabel}>{t('activeLabel')}</Text>
           </View>
           <View style={styles.statCard}>
             <Text style={styles.statValue}>{formatCurrency(totalValue)}</Text>
-            <Text style={styles.statLabel}>Wallet Value</Text>
+            <Text style={styles.statLabel}>{t('walletValue')}</Text>
           </View>
           <View style={styles.statCard}>
             <Text style={styles.statValue}>{usedCount}</Text>
-            <Text style={styles.statLabel}>Used</Text>
+            <Text style={styles.statLabel}>{t('usedLabel')}</Text>
           </View>
           <View style={styles.statCard}>
             <Text style={[styles.statValue, expiredCount > 0 && { color: colors.error }]}>
               {expiredCount}
             </Text>
-            <Text style={styles.statLabel}>Expired</Text>
+            <Text style={styles.statLabel}>{t('expiredLabel')}</Text>
           </View>
         </View>
 
@@ -247,11 +247,11 @@ export default function ProfileScreen() {
         <View style={styles.menuCard}>
           <MenuItem emoji="💳" label={t('paymentMethods')} onPress={() => { setPaymentError(''); setPaymentSaved(false); setOpenModal('payment'); }} />
           <View style={styles.divider} />
-          <MenuItem emoji="📊" label="Trade History" onPress={() => setOpenModal('history')} />
+          <MenuItem emoji="📊" label={t('tradeHistory')} onPress={() => setOpenModal('history')} />
           <View style={styles.divider} />
-          <MenuItem emoji="🔔" label="Notification Settings" onPress={() => setOpenModal('notifications')} />
+          <MenuItem emoji="🔔" label={t('notificationSettings')} onPress={() => setOpenModal('notifications')} />
           <View style={styles.divider} />
-          <MenuItem emoji="🔒" label="Security" onPress={() => setOpenModal('security')} />
+          <MenuItem emoji="🔒" label={t('security')} onPress={() => setOpenModal('security')} />
         </View>
 
         <TouchableOpacity

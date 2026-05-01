@@ -13,6 +13,7 @@ import { useEffect, useState, useMemo, useCallback } from 'react';
 import { router, useFocusEffect } from 'expo-router';
 import { useAuthStore } from '@/lib/stores/authStore';
 import { useWalletStore } from '@/lib/stores/walletStore';
+import { useT } from '@/lib/i18n';
 import VoucherCard from '@/components/VoucherCard';
 import AppHeader from '@/components/AppHeader';
 import { colors, spacing, fontSizes, radius } from '@/lib/constants/theme';
@@ -34,6 +35,7 @@ const CLASSIFICATION_ORDER: VoucherClassification[] = ['credit', 'regular_vouche
 export default function WalletScreen() {
   const { user } = useAuthStore();
   const { vouchers, loading, fetchVouchers, deleteVoucher } = useWalletStore();
+  const t = useT();
 
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState<VoucherCategory | 'all'>('all');
@@ -109,19 +111,17 @@ export default function WalletScreen() {
       <View style={styles.empty}>
         <Text style={styles.emptyEmoji}>👜</Text>
         <Text style={styles.emptyTitle}>
-          {search || activeCategory !== 'all' ? 'No matching vouchers' : 'Your wallet is lonely!'}
+          {search || activeCategory !== 'all' ? t('noMatchingVouchers') : t('walletLonely')}
         </Text>
         <Text style={styles.emptySubtitle}>
-          {search || activeCategory !== 'all'
-            ? 'Try adjusting your search or filters'
-            : 'Add your first voucher to get started'}
+          {search || activeCategory !== 'all' ? t('adjustFilters') : t('noVouchersSubtitle')}
         </Text>
         {!search && activeCategory === 'all' && (
           <TouchableOpacity
             style={styles.emptyButton}
             onPress={() => router.push('/voucher/add')}
           >
-            <Text style={styles.emptyButtonText}>Add Voucher</Text>
+            <Text style={styles.emptyButtonText}>{t('addVoucher')}</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -131,26 +131,26 @@ export default function WalletScreen() {
   function renderTopBar() {
     return (
       <>
-        <AppHeader subtitle="Your voucher wallet" />
+        <AppHeader subtitle={t('walletSubtitle')} />
         <View style={styles.header}>
           <View style={styles.headerTop}>
-            <Text style={styles.greeting}>My Wallet</Text>
+            <Text style={styles.greeting}>{t('myWallet')}</Text>
             <TouchableOpacity
               style={styles.addButton}
               onPress={() => router.push('/voucher/add')}
             >
-              <Text style={styles.addButtonText}>+ Add</Text>
+              <Text style={styles.addButtonText}>+ {t('addVoucher')}</Text>
             </TouchableOpacity>
           </View>
           <View style={styles.summaryCard}>
             <View style={styles.summaryItem}>
               <Text style={styles.summaryValue}>{formatCurrency(totalValue)}</Text>
-              <Text style={styles.summaryLabel}>Total value</Text>
+              <Text style={styles.summaryLabel}>{t('totalValue')}</Text>
             </View>
             <View style={styles.summaryDivider} />
             <View style={styles.summaryItem}>
               <Text style={styles.summaryValue}>{activeVouchers.length}</Text>
-              <Text style={styles.summaryLabel}>Vouchers</Text>
+              <Text style={styles.summaryLabel}>{t('vouchersLabel')}</Text>
             </View>
             <View style={styles.summaryDivider} />
             <View style={styles.summaryItem}>
@@ -158,7 +158,7 @@ export default function WalletScreen() {
                 {formatCurrency(expiringValue)}
               </Text>
               <Text style={[styles.summaryLabel, expiringCount > 0 && { color: colors.warning }]}>
-                Expiring soon ({expiringCount})
+                {t('expiringSoon')} ({expiringCount})
               </Text>
             </View>
           </View>
@@ -170,7 +170,7 @@ export default function WalletScreen() {
             <Text style={styles.searchIcon}>🔍</Text>
             <TextInput
               style={styles.searchInput}
-              placeholder="Search vouchers..."
+              placeholder={t('searchVouchers')}
               placeholderTextColor={colors.textMuted}
               value={search}
               onChangeText={setSearch}
@@ -194,7 +194,7 @@ export default function WalletScreen() {
                 onPress={() => setActiveCategory(cat)}
               >
                 <Text style={[styles.filterChipText, activeCategory === cat && styles.filterChipTextActive]}>
-                  {cat === 'all' ? 'All' : CATEGORY_LABELS[cat as VoucherCategory]}
+                  {cat === 'all' ? t('filterAll') : CATEGORY_LABELS[cat as VoucherCategory]}
                 </Text>
               </TouchableOpacity>
             ))}

@@ -89,6 +89,52 @@ export const translations = {
     skipRating:       'Skip',
     ratingSubmitted:  'Rating submitted — thank you!',
 
+    // History extra
+    removeFromHistory: 'Remove from History?',
+    usedBadge: 'Used',
+    expiredBadge: 'Exp.',
+    dealCompleted: 'Completed ✓',
+    dealDeclined: 'Declined',
+    dealRefunded: 'Refunded',
+    dealCancelled: 'Cancelled',
+    salesSummary: '🏷 Sold',
+    purchasesSummary: '🛒 Bought',
+    dealsWord: 'deals',
+    historySubtitleDeals: 'closed deals',
+    historySubtitleSaved: 'saved',
+    historySubtitleEmpty: 'Deals & used vouchers',
+    expiredOn: 'Expired',
+    deleteAction: 'Delete',
+    deleting: 'Deleting…',
+    cancelAction: 'Cancel',
+    iSoldRole: '🏷 Sold',
+    iBoughtRole: '🛒 Bought',
+
+    // Wallet extra
+    myWallet: 'My Wallet',
+    walletSubtitle: 'Your voucher wallet',
+    totalValue: 'Total value',
+    vouchersLabel: 'Vouchers',
+    expiringSoon: 'Expiring soon',
+    filterAll: 'All',
+    noMatchingVouchers: 'No matching vouchers',
+    adjustFilters: 'Try adjusting your search or filters',
+    walletLonely: 'Your wallet is lonely!',
+
+    // Profile extra
+    tradeHistory: 'Trade History',
+    notificationSettings: 'Notification Settings',
+    security: 'Security',
+    activeLabel: 'Active',
+    walletValue: 'Wallet Value',
+    usedLabel: 'Used',
+    expiredLabel: 'Expired',
+
+    // Marketplace extra
+    globalMarket: '🌍 Global Market',
+    myMarket: '🏷️ My Market',
+    buyAndSell: 'Buy, sell & trade vouchers',
+
     // Common
     close:            'Close',
     send:             'Send',
@@ -189,6 +235,52 @@ export const translations = {
     submitRating:     'שלח דירוג',
     skipRating:       'דלג',
     ratingSubmitted:  'הדירוג נשלח — תודה!',
+
+    // History extra
+    removeFromHistory: 'הסרה מהיסטוריה?',
+    usedBadge: 'נוצל',
+    expiredBadge: 'פג',
+    dealCompleted: 'הושלם ✓',
+    dealDeclined: 'נדחה',
+    dealRefunded: 'הוחזר',
+    dealCancelled: 'בוטל',
+    salesSummary: '🏷 מכרתי',
+    purchasesSummary: '🛒 קניתי',
+    dealsWord: 'עסקאות',
+    historySubtitleDeals: 'עסקאות סגורות',
+    historySubtitleSaved: 'חסכת',
+    historySubtitleEmpty: 'עסקאות שנסגרו ווצ׳רים בשימוש',
+    expiredOn: 'פג תוקף',
+    deleteAction: 'מחק',
+    deleting: 'מוחק…',
+    cancelAction: 'ביטול',
+    iSoldRole: '🏷 מכרת',
+    iBoughtRole: '🛒 קנית',
+
+    // Wallet extra
+    myWallet: 'הארנק שלי',
+    walletSubtitle: 'ארנק הווצ\'רים שלך',
+    totalValue: 'שווי כולל',
+    vouchersLabel: 'ווצ\'רים',
+    expiringSoon: 'פג בקרוב',
+    filterAll: 'הכל',
+    noMatchingVouchers: 'אין ווצ\'רים תואמים',
+    adjustFilters: 'נסה לשנות את החיפוש או הפילטרים',
+    walletLonely: 'הארנק שלך ריק!',
+
+    // Profile extra
+    tradeHistory: 'היסטוריית עסקאות',
+    notificationSettings: 'הגדרות התראות',
+    security: 'אבטחה',
+    activeLabel: 'פעיל',
+    walletValue: 'שווי ארנק',
+    usedLabel: 'נוצל',
+    expiredLabel: 'פג תוקף',
+
+    // Marketplace extra
+    globalMarket: '🌍 שוק גלובלי',
+    myMarket: '🏷️ השוק שלי',
+    buyAndSell: 'קנה, מכור וסחר ווצ\'רים',
 
     // Common
     close:            'סגור',
