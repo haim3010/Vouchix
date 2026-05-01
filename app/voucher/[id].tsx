@@ -93,13 +93,20 @@ export default function VoucherDetailScreen() {
           Alert.alert('Invalid', 'Please enter a valid amount');
           return;
         }
-        if (amountUsed >= voucher.remaining_value) {
+        if (amountUsed > voucher.remaining_value) {
           Alert.alert('Invalid', 'Amount used cannot exceed remaining balance');
           return;
         }
-        const newRemaining = voucher.remaining_value - amountUsed;
-        await updateVoucher(voucher.id, { remaining_value: newRemaining });
-        setUsedModalVisible(false);
+        const newRemaining = Math.round((voucher.remaining_value - amountUsed) * 100) / 100;
+        if (newRemaining <= 0) {
+          // Partial use fully depleted the voucher — mark as used and move to history
+          await updateVoucher(voucher.id, { remaining_value: 0, status: 'used' });
+          setUsedModalVisible(false);
+          router.back();
+        } else {
+          await updateVoucher(voucher.id, { remaining_value: newRemaining });
+          setUsedModalVisible(false);
+        }
       }
     } catch {
       Alert.alert('Error', 'Failed to update voucher');
