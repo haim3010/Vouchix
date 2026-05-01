@@ -78,15 +78,16 @@ export const useWalletStore = create<WalletState>((set) => ({
           ? { is_listed: false, listing_price: null }
           : {};
 
-      const { data, error } = await supabase
+      const patch = { ...updates, ...autoDelistPatch, updated_at: new Date().toISOString() };
+
+      const { error } = await supabase
         .from('vouchers')
-        .update({ ...updates, ...autoDelistPatch, updated_at: new Date().toISOString() })
-        .eq('id', id)
-        .select()
-        .single();
+        .update(patch)
+        .eq('id', id);
       if (error) throw error;
+
       set((state) => ({
-        vouchers: state.vouchers.map((v) => (v.id === id ? (data as Voucher) : v)),
+        vouchers: state.vouchers.map((v) => v.id === id ? { ...v, ...patch } as Voucher : v),
       }));
     } catch (e) {
       const msg = extractMessage(e, 'Failed to update voucher');
