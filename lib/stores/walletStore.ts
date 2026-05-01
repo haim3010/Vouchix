@@ -34,7 +34,7 @@ export const useWalletStore = create<WalletState>((set) => ({
       // Auto-mark any active vouchers whose expiry date has passed
       await supabase
         .from('vouchers')
-        .update({ status: 'expired', updated_at: new Date().toISOString() })
+        .update({ status: 'expired' })
         .eq('owner_id', userId)
         .eq('status', 'active')
         .lt('expires_at', new Date().toISOString());
@@ -78,7 +78,7 @@ export const useWalletStore = create<WalletState>((set) => ({
           ? { is_listed: false, listing_price: null }
           : {};
 
-      const patch = { ...updates, ...autoDelistPatch, updated_at: new Date().toISOString() };
+      const patch = { ...updates, ...autoDelistPatch };
 
       const { error } = await supabase
         .from('vouchers')
