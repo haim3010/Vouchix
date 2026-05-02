@@ -749,8 +749,14 @@ export default function MessagesScreen() {
                 onPress={async () => {
                   if (!deleteTarget) return;
                   setDeletingConv(true);
-                  try { await deleteConversation(deleteTarget.offer_id); }
-                  finally { setDeletingConv(false); setDeleteTarget(null); }
+                  try {
+                    await deleteConversation(deleteTarget.offer_id);
+                    setDeleteTarget(null);
+                  } catch (e) {
+                    setActionError(e instanceof Error ? e.message : 'Delete failed');
+                  } finally {
+                    setDeletingConv(false);
+                  }
                 }}
                 disabled={deletingConv}
               >

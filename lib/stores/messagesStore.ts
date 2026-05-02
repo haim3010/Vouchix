@@ -310,9 +310,16 @@ export const useMessagesStore = create<MessagesState>((set, get) => ({
 
   deleteConversation: async (offerId: string) => {
     // Delete messages first (in case CASCADE isn't set), then the offer
-    await supabase.from('messages').delete().eq('offer_id', offerId);
-    const { error } = await supabase.from('offers').delete().eq('id', offerId);
+    const { error: msgErr, count: msgCount } = await supabase
+      .from('messages').delete({ count: 'exact' }).eq('offer_id', offerId);
+    if (msgErr) console.warn('[deleteConversation] messages error:', msgErr);
+    const { error, count } = await supabase
+      .from('offers').delete({ count: 'exact' }).eq('id', offerId);
     if (error) throw error;
+    console.log('[deleteConversation] deleted', { msgCount, offerCount: count });
+    if (count === 0) {
+      throw new Error('Delete blocked by RLS — no rows removed. Add a DELETE policy for sellers.');
+    }
     set((state) => ({
       conversations: state.conversations.filter((c) => c.offer_id !== offerId),
       currentConversation: state.currentConversation?.offer_id === offerId ? null : state.currentConversation,
