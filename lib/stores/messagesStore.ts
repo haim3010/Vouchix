@@ -275,7 +275,15 @@ export const useMessagesStore = create<MessagesState>((set, get) => ({
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'offers' },
-        () => { get().fetchConversations(userId); }
+        async () => {
+          await get().fetchConversations(userId);
+          // Sync currentConversation with the fresh list so an open chat reflects status changes
+          const { currentConversation, conversations } = get();
+          if (currentConversation) {
+            const fresh = conversations.find((c) => c.offer_id === currentConversation.offer_id);
+            if (fresh) set({ currentConversation: fresh });
+          }
+        }
       )
       .subscribe();
     return () => { supabase.removeChannel(channel); };

@@ -338,7 +338,7 @@ export default function MessagesScreen() {
     // What each role can do while pending
     const sellerCanAct  = isPending && conv.is_seller;   // accept, counter, decline
     const buyerCanAct   = isPending && !conv.is_seller;  // counter, cancel
-    const canComplete   = isAccepted && conv.is_seller;
+    const canComplete   = false; // seller no longer marks complete manually
     const showActions   = sellerCanAct || buyerCanAct || canComplete;
 
     return (
@@ -499,18 +499,7 @@ export default function MessagesScreen() {
               </View>
             )}
 
-            {/* ── SELLER: accepted — mark complete ── */}
-            {canComplete && (
-              <View style={styles.offerActions}>
-                <TouchableOpacity
-                  style={[styles.actionBtn, styles.actionBtnComplete, { flex: 1 }]}
-                  onPress={() => { setActionError(''); setShowCompleteConfirm(true); }}
-                  disabled={actionLoading}
-                >
-                  <Text style={styles.actionBtnText}>✓ Mark as Completed</Text>
-                </TouchableOpacity>
-              </View>
-            )}
+            {/* Seller "Mark as Completed" removed — completion happens automatically when buyer pays */}
 
             {/* ── BUYER: pending ── */}
             {buyerCanAct && (
