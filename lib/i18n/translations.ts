@@ -375,7 +375,7 @@ export const translations = {
     currency:         '₪',
 
     // Classification labels
-    classCredit:      'אשראי',
+    classCredit:      'זיכוי',
     classRegular:     'ווצ\'ר רגיל',
     classGiftCard:    'כרטיס מתנה',
     classGroup:       'קבוצת ווצ\'רים',
