@@ -545,9 +545,24 @@ export default function MessagesScreen() {
         {conv.offer_status === 'accepted' && !conv.is_seller && (
           <TouchableOpacity
             style={styles.payNowBtn}
-            onPress={() => router.push(`/offer/make?offerId=${conv.offer_id}`)}
+            onPress={async () => {
+              setActionError('');
+              setActionLoading(true);
+              try {
+                await completeOffer(conv.offer_id);
+                updateConversationStatus(conv.offer_id, 'completed');
+                setRatingTarget({ userId: conv.other_user_id, name: conv.other_user_name });
+              } catch (e) {
+                setActionError(e instanceof Error ? e.message : 'Failed to complete deal');
+              } finally {
+                setActionLoading(false);
+              }
+            }}
+            disabled={actionLoading}
           >
-            <Text style={styles.payNowBtnText}>💳 Pay Now — Complete the Deal</Text>
+            <Text style={styles.payNowBtnText}>
+              {actionLoading ? t('loading') : '💳 Pay Now — Complete the Deal'}
+            </Text>
           </TouchableOpacity>
         )}
 
