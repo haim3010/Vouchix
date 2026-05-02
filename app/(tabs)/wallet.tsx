@@ -82,6 +82,18 @@ export default function WalletScreen() {
     });
   }, [activeVouchers, search, activeCategory]);
 
+  const classificationLabels: Record<string, string> = {
+    credit: t('classCredit'),
+    regular_voucher: t('classRegular'),
+    gift_card: t('classGiftCard'),
+    voucher_group: t('classGroup'),
+  };
+  const categoryChipLabels: Record<string, string> = {
+    shopping: t('catShopping'), food_and_beverage: t('catFood'),
+    restaurants: t('catRestaurants'), culture_and_leisure: t('catCulture'),
+    sports: t('catSports'), other: t('catOther'),
+  };
+
   const sections = useMemo(() => {
     const grouped: Record<string, Voucher[]> = {};
     for (const v of filteredVouchers) {
@@ -92,11 +104,11 @@ export default function WalletScreen() {
     return CLASSIFICATION_ORDER
       .filter((c) => grouped[c] && grouped[c].length > 0)
       .map((c) => ({
-        title: CLASSIFICATION_LABELS[c],
+        title: classificationLabels[c] ?? CLASSIFICATION_LABELS[c],
         key: c,
         data: grouped[c],
       }));
-  }, [filteredVouchers]);
+  }, [filteredVouchers, classificationLabels]);
 
   function renderSectionHeader({ section }: { section: { title: string } }) {
     return (
@@ -194,7 +206,7 @@ export default function WalletScreen() {
                 onPress={() => setActiveCategory(cat)}
               >
                 <Text style={[styles.filterChipText, activeCategory === cat && styles.filterChipTextActive]}>
-                  {cat === 'all' ? t('filterAll') : CATEGORY_LABELS[cat as VoucherCategory]}
+                  {cat === 'all' ? t('filterAll') : (categoryChipLabels[cat] ?? cat)}
                 </Text>
               </TouchableOpacity>
             ))}

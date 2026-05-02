@@ -17,18 +17,18 @@ import { useAuthStore } from '@/lib/stores/authStore';
 import { useWalletStore } from '@/lib/stores/walletStore';
 import { POPULAR_BRANDS, BrandInfo } from '@/lib/constants/brands';
 import { colors, spacing, radius, fontSizes } from '@/lib/constants/theme';
+import { useT } from '@/lib/i18n';
 import {
   VoucherClassification,
   VoucherCategory,
   VoucherType,
-  CLASSIFICATION_LABELS,
-  CATEGORY_LABELS,
 } from '@/types';
 
 const CLASSIFICATIONS: VoucherClassification[] = ['credit', 'regular_voucher', 'gift_card', 'voucher_group'];
 const CATEGORIES: VoucherCategory[] = ['shopping', 'food_and_beverage', 'restaurants', 'culture_and_leisure', 'sports', 'other'];
 
 export default function AddVoucherScreen() {
+  const t = useT();
   const { user } = useAuthStore();
   const { addVoucher, updateVoucher, vouchers } = useWalletStore();
   const { editId } = useLocalSearchParams<{ editId?: string }>();
@@ -113,23 +113,23 @@ export default function AddVoucherScreen() {
     setSaveError('');
 
     if (!classification) {
-      setSaveError('Please select a classification');
+      setSaveError(t('errSelectClassification'));
       return;
     }
     if (!isVoucherGroup && !category) {
-      setSaveError('Please select a category');
+      setSaveError(t('errSelectCategory'));
       return;
     }
     if (!isVoucherGroup && !brand.trim()) {
-      setSaveError('Please enter a brand name');
+      setSaveError(t('errEnterBrand'));
       return;
     }
     if (!isVoucherGroup && !originalValue) {
-      setSaveError('Please enter the original value');
+      setSaveError(t('errEnterOriginalValue'));
       return;
     }
     if (!user?.id) {
-      setSaveError('Not logged in — please restart the app');
+      setSaveError(t('errNotLoggedIn'));
       return;
     }
 
@@ -137,15 +137,15 @@ export default function AddVoucherScreen() {
     const rem = remainingValue ? parseFloat(remainingValue) : orig;
 
     if (!isVoucherGroup && (isNaN(orig) || orig <= 0)) {
-      setSaveError('Invalid original value');
+      setSaveError(t('errInvalidValue'));
       return;
     }
     if (!isVoucherGroup && rem > orig) {
-      setSaveError('Remaining value cannot be higher than the original value');
+      setSaveError(t('errRemainingExceeds'));
       return;
     }
     if (voucherType === 'digital' && !voucherCode.trim()) {
-      setSaveError('Voucher Code is required for Digital Code type');
+      setSaveError(t('errVoucherCodeRequired'));
       return;
     }
 
@@ -189,10 +189,22 @@ export default function AddVoucherScreen() {
 
   const formDisabled = isVoucherGroup;
 
+  const classificationChipLabels: Record<VoucherClassification, string> = {
+    credit: t('classCredit'),
+    regular_voucher: t('classRegular'),
+    gift_card: t('classGiftCard'),
+    voucher_group: t('classGroup'),
+  };
+  const categoryChipLabels: Record<VoucherCategory, string> = {
+    shopping: t('catShopping'), food_and_beverage: t('catFood'),
+    restaurants: t('catRestaurants'), culture_and_leisure: t('catCulture'),
+    sports: t('catSports'), other: t('catOther'),
+  };
+
   function renderClassificationSection() {
     return (
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Classification *</Text>
+        <Text style={styles.sectionTitle}>{t('classificationSection')} *</Text>
         <View style={styles.chipRow}>
           {CLASSIFICATIONS.map((c) => (
             <TouchableOpacity
@@ -201,16 +213,14 @@ export default function AddVoucherScreen() {
               onPress={() => setClassification(c)}
             >
               <Text style={[styles.chipText, classification === c && styles.chipTextSelected]}>
-                {CLASSIFICATION_LABELS[c]}
+                {classificationChipLabels[c]}
               </Text>
             </TouchableOpacity>
           ))}
         </View>
         {isVoucherGroup && (
           <View style={styles.groupNote}>
-            <Text style={styles.groupNoteText}>
-              Voucher Group: Only a link can be added below. All other fields are disabled.
-            </Text>
+            <Text style={styles.groupNoteText}>{t('voucherGroupNote')}</Text>
           </View>
         )}
       </View>
@@ -220,7 +230,7 @@ export default function AddVoucherScreen() {
   function renderCategorySection() {
     return (
       <View style={[styles.section, formDisabled && styles.sectionDisabled]}>
-        <Text style={[styles.sectionTitle, formDisabled && styles.labelDisabled]}>Category *</Text>
+        <Text style={[styles.sectionTitle, formDisabled && styles.labelDisabled]}>{t('categorySection')} *</Text>
         <View style={styles.chipRow}>
           {CATEGORIES.map((c) => (
             <TouchableOpacity
@@ -230,7 +240,7 @@ export default function AddVoucherScreen() {
               disabled={formDisabled}
             >
               <Text style={[styles.chipText, category === c && styles.chipTextSelected, formDisabled && styles.chipTextDisabled]}>
-                {CATEGORY_LABELS[c]}
+                {categoryChipLabels[c]}
               </Text>
             </TouchableOpacity>
           ))}
@@ -242,11 +252,11 @@ export default function AddVoucherScreen() {
   function renderBrandSection() {
     return (
       <View style={[styles.section, formDisabled && styles.sectionDisabled]}>
-        <Text style={[styles.sectionTitle, formDisabled && styles.labelDisabled]}>Brand *</Text>
+        <Text style={[styles.sectionTitle, formDisabled && styles.labelDisabled]}>{t('brandSection')} *</Text>
         <View style={styles.brandRow}>
           <TextInput
             style={[styles.input, styles.brandInput, formDisabled && styles.inputDisabled]}
-            placeholder="Type brand name..."
+            placeholder={t('typeBrandPlaceholder')}
             placeholderTextColor={colors.textMuted}
             value={brand}
             onChangeText={setBrand}
@@ -257,7 +267,7 @@ export default function AddVoucherScreen() {
             onPress={() => !formDisabled && setBrandPickerVisible(true)}
             disabled={formDisabled}
           >
-            <Text style={[styles.brandPickerBtnText, formDisabled && styles.chipTextDisabled]}>Browse</Text>
+            <Text style={[styles.brandPickerBtnText, formDisabled && styles.chipTextDisabled]}>{t('browseLabel')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -267,10 +277,10 @@ export default function AddVoucherScreen() {
   function renderValuesSection() {
     return (
       <View style={[styles.section, formDisabled && styles.sectionDisabled]}>
-        <Text style={[styles.sectionTitle, formDisabled && styles.labelDisabled]}>Value</Text>
+        <Text style={[styles.sectionTitle, formDisabled && styles.labelDisabled]}>{t('valueSection')}</Text>
         <View style={styles.twoCol}>
           <View style={styles.colItem}>
-            <Text style={[styles.label, formDisabled && styles.labelDisabled]}>Original (₪) *</Text>
+            <Text style={[styles.label, formDisabled && styles.labelDisabled]}>{t('originalLabel')} *</Text>
             <TextInput
               style={[styles.input, formDisabled && styles.inputDisabled]}
               placeholder="500.00"
@@ -285,7 +295,7 @@ export default function AddVoucherScreen() {
             />
           </View>
           <View style={styles.colItem}>
-            <Text style={[styles.label, formDisabled && styles.labelDisabled]}>Remaining (₪)</Text>
+            <Text style={[styles.label, formDisabled && styles.labelDisabled]}>{t('remainingLabel')}</Text>
             <TextInput
               style={[
                 styles.input,
@@ -293,7 +303,7 @@ export default function AddVoucherScreen() {
                 remainingEdited && remainingValue && parseFloat(remainingValue) > parseFloat(originalValue || '0')
                   ? styles.inputError : null,
               ]}
-              placeholder="Same as original"
+              placeholder={t('sameAsOriginal')}
               placeholderTextColor={colors.textMuted}
               keyboardType="decimal-pad"
               value={remainingValue}
@@ -301,7 +311,7 @@ export default function AddVoucherScreen() {
               editable={!formDisabled}
             />
             {remainingEdited && remainingValue && parseFloat(remainingValue) > parseFloat(originalValue || '0') ? (
-              <Text style={styles.fieldError}>Cannot exceed original value</Text>
+              <Text style={styles.fieldError}>{t('cannotExceedError')}</Text>
             ) : null}
           </View>
         </View>
@@ -312,14 +322,14 @@ export default function AddVoucherScreen() {
   function renderDateSection() {
     return (
       <View style={[styles.section, formDisabled && styles.sectionDisabled]}>
-        <Text style={[styles.sectionTitle, formDisabled && styles.labelDisabled]}>Expiration Date</Text>
+        <Text style={[styles.sectionTitle, formDisabled && styles.labelDisabled]}>{t('expirationSection')}</Text>
         <TouchableOpacity
           style={[styles.datePicker, formDisabled && styles.inputDisabled]}
           onPress={() => !formDisabled && openDatePicker()}
           disabled={formDisabled}
         >
           <Text style={[styles.datePickerText, !expiresAt && styles.datePickerPlaceholder]}>
-            {expiresAt ? expiresAt.toLocaleDateString('en-GB') : 'Select expiration date...'}
+            {expiresAt ? expiresAt.toLocaleDateString('en-GB') : t('selectDatePlaceholder')}
           </Text>
           <Text style={styles.datePickerIcon}>📅</Text>
         </TouchableOpacity>
@@ -330,7 +340,7 @@ export default function AddVoucherScreen() {
   function renderVoucherTypeSection() {
     return (
       <View style={[styles.section, formDisabled && styles.sectionDisabled]}>
-        <Text style={[styles.sectionTitle, formDisabled && styles.labelDisabled]}>Voucher Type</Text>
+        <Text style={[styles.sectionTitle, formDisabled && styles.labelDisabled]}>{t('voucherTypeSection')}</Text>
         <View style={styles.typeCardRow}>
           <TouchableOpacity
             style={[
@@ -343,10 +353,10 @@ export default function AddVoucherScreen() {
           >
             <Text style={styles.typeCardEmoji}>💳</Text>
             <Text style={[styles.typeCardTitle, voucherType === 'digital' && styles.typeCardTitleSelected]}>
-              Digital Code
+              {t('digitalCodeTitle')}
             </Text>
             <Text style={[styles.typeCardSub, formDisabled && styles.labelDisabled]}>
-              Numeric / alphanumeric code
+              {t('digitalCodeSub')}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -360,10 +370,10 @@ export default function AddVoucherScreen() {
           >
             <Text style={styles.typeCardEmoji}>🎟️</Text>
             <Text style={[styles.typeCardTitle, voucherType === 'physical' && styles.typeCardTitleSelected]}>
-              Physical Voucher
+              {t('physicalVoucherTitle')}
             </Text>
             <Text style={[styles.typeCardSub, formDisabled && styles.labelDisabled]}>
-              Paper or QR code
+              {t('physicalVoucherSub')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -371,9 +381,9 @@ export default function AddVoucherScreen() {
         {voucherType === 'digital' && !formDisabled && (
           <View style={styles.typeFields}>
             <View style={[styles.badge, styles.badgeGreen]}>
-              <Text style={styles.badgeText}>✓ Instant trading / Auto transfer</Text>
+              <Text style={styles.badgeText}>{t('instantTradingBadge')}</Text>
             </View>
-            <Text style={styles.label}>Voucher Code <Text style={styles.required}>*</Text></Text>
+            <Text style={styles.label}>{t('voucherCodeLabel')} <Text style={styles.required}>*</Text></Text>
             <TextInput
               style={[styles.input, styles.codeInput, !voucherCode.trim() ? styles.inputRequired : null]}
               placeholder="XXXX-XXXX-XXXX-XXXX"
@@ -383,9 +393,9 @@ export default function AddVoucherScreen() {
               onChangeText={setVoucherCode}
             />
             {!voucherCode.trim() && (
-              <Text style={styles.fieldHint}>Required for digital vouchers</Text>
+              <Text style={styles.fieldHint}>{t('voucherCodeHint')}</Text>
             )}
-            <Text style={styles.label}>PIN (optional)</Text>
+            <Text style={styles.label}>{t('pinLabel')}</Text>
             <TextInput
               style={[styles.input, styles.codeInput]}
               placeholder="1234"
@@ -394,20 +404,20 @@ export default function AddVoucherScreen() {
               value={pinCode}
               onChangeText={setPinCode}
             />
-            <Text style={styles.label}>Voucher Image *</Text>
+            <Text style={styles.label}>{t('voucherImageLabel')} *</Text>
             <TouchableOpacity style={styles.imageUploadBtn} onPress={pickImage}>
               {imageUri ? (
                 <Image source={{ uri: imageUri }} style={styles.imagePreview} resizeMode="cover" />
               ) : (
                 <>
                   <Text style={styles.imageUploadIcon}>📷</Text>
-                  <Text style={styles.imageUploadText}>Upload Photo / Take Picture</Text>
+                  <Text style={styles.imageUploadText}>{t('uploadPhotoText')}</Text>
                 </>
               )}
             </TouchableOpacity>
             {imageUri && (
               <TouchableOpacity onPress={() => setImageUri(null)} style={styles.removeImageBtn}>
-                <Text style={styles.removeImageText}>Remove image</Text>
+                <Text style={styles.removeImageText}>{t('removeImageText')}</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -416,7 +426,7 @@ export default function AddVoucherScreen() {
         {voucherType === 'physical' && !formDisabled && (
           <View style={styles.typeFields}>
             <View style={[styles.badge, styles.badgeAmber]}>
-              <Text style={styles.badgeText}>⚠ Trading requires coordination / Manual transfer</Text>
+              <Text style={styles.badgeText}>{t('manualTradingBadge')}</Text>
             </View>
             <TouchableOpacity style={styles.imageUploadBtn} onPress={pickImage}>
               {imageUri ? (
@@ -424,19 +434,19 @@ export default function AddVoucherScreen() {
               ) : (
                 <>
                   <Text style={styles.imageUploadIcon}>📷</Text>
-                  <Text style={styles.imageUploadText}>Upload Photo / Take Picture</Text>
+                  <Text style={styles.imageUploadText}>{t('uploadPhotoText')}</Text>
                 </>
               )}
             </TouchableOpacity>
             {imageUri && (
               <TouchableOpacity onPress={() => setImageUri(null)} style={styles.removeImageBtn}>
-                <Text style={styles.removeImageText}>Remove image</Text>
+                <Text style={styles.removeImageText}>{t('removeImageText')}</Text>
               </TouchableOpacity>
             )}
-            <Text style={styles.label}>Barcode Number (optional)</Text>
+            <Text style={styles.label}>{t('barcodeLabel')}</Text>
             <TextInput
               style={styles.input}
-              placeholder="e.g. 1234567890"
+              placeholder={t('barcodePlaceholder')}
               placeholderTextColor={colors.textMuted}
               keyboardType="number-pad"
               value={barcodeNumber}
@@ -447,10 +457,10 @@ export default function AddVoucherScreen() {
 
         {isVoucherGroup && (
           <View style={styles.typeFields}>
-            <Text style={styles.label}>Link / Voucher Code</Text>
+            <Text style={styles.label}>{t('linkLabel')}</Text>
             <TextInput
               style={styles.input}
-              placeholder="https://... or group code"
+              placeholder={t('linkPlaceholder')}
               placeholderTextColor={colors.textMuted}
               autoCapitalize="none"
               value={voucherCode}
@@ -468,12 +478,12 @@ export default function AddVoucherScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Text style={styles.backText}>✕</Text>
         </TouchableOpacity>
-        <Text style={styles.navTitle}>{isEdit ? 'Edit Voucher' : 'Add Voucher'}</Text>
+        <Text style={styles.navTitle}>{isEdit ? t('editVoucherTitle') : t('addVoucher')}</Text>
         <TouchableOpacity onPress={handleSave} disabled={loading}>
           {loading ? (
             <ActivityIndicator color={colors.accent} />
           ) : (
-            <Text style={styles.saveText}>Save</Text>
+            <Text style={styles.saveText}>{t('save')}</Text>
           )}
         </TouchableOpacity>
       </View>
@@ -493,10 +503,10 @@ export default function AddVoucherScreen() {
         {renderVoucherTypeSection()}
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Notes</Text>
+          <Text style={styles.sectionTitle}>{t('notesSection')}</Text>
           <TextInput
             style={[styles.input, styles.textArea]}
-            placeholder="Any additional info..."
+            placeholder={t('anyInfoPlaceholder')}
             placeholderTextColor={colors.textMuted}
             multiline
             numberOfLines={3}
@@ -510,14 +520,14 @@ export default function AddVoucherScreen() {
       <Modal visible={brandPickerVisible} animationType="slide" presentationStyle="pageSheet">
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Select Brand</Text>
+            <Text style={styles.modalTitle}>{t('selectBrandTitle')}</Text>
             <TouchableOpacity onPress={() => setBrandPickerVisible(false)}>
-              <Text style={styles.modalClose}>Done</Text>
+              <Text style={styles.modalClose}>{t('doneLabel')}</Text>
             </TouchableOpacity>
           </View>
           <TextInput
             style={styles.searchInput}
-            placeholder="Search brands..."
+            placeholder={t('searchBrandsPlaceholder')}
             placeholderTextColor={colors.textMuted}
             value={brandSearch}
             onChangeText={setBrandSearch}
@@ -541,10 +551,10 @@ export default function AddVoucherScreen() {
       <Modal visible={datePickerVisible} animationType="fade" transparent>
         <View style={styles.dateModalOverlay}>
           <View style={styles.dateModalCard}>
-            <Text style={styles.dateModalTitle}>Select Date</Text>
+            <Text style={styles.dateModalTitle}>{t('selectDateTitle')}</Text>
             <View style={styles.dateRow}>
               <View style={styles.dateCol}>
-                <Text style={styles.dateColLabel}>Day</Text>
+                <Text style={styles.dateColLabel}>{t('dayLabel')}</Text>
                 <TouchableOpacity style={styles.dateArrow} onPress={() => setPickDay((d) => Math.max(1, d - 1))}>
                   <Text style={styles.dateArrowText}>▲</Text>
                 </TouchableOpacity>
@@ -555,7 +565,7 @@ export default function AddVoucherScreen() {
               </View>
               <Text style={styles.dateSep}>/</Text>
               <View style={styles.dateCol}>
-                <Text style={styles.dateColLabel}>Month</Text>
+                <Text style={styles.dateColLabel}>{t('monthLabel')}</Text>
                 <TouchableOpacity style={styles.dateArrow} onPress={() => setPickMonth((m) => Math.max(1, m - 1))}>
                   <Text style={styles.dateArrowText}>▲</Text>
                 </TouchableOpacity>
@@ -566,7 +576,7 @@ export default function AddVoucherScreen() {
               </View>
               <Text style={styles.dateSep}>/</Text>
               <View style={styles.dateCol}>
-                <Text style={styles.dateColLabel}>Year</Text>
+                <Text style={styles.dateColLabel}>{t('yearLabel')}</Text>
                 <TouchableOpacity style={styles.dateArrow} onPress={() => setPickYear((y) => y - 1)}>
                   <Text style={styles.dateArrowText}>▲</Text>
                 </TouchableOpacity>
@@ -578,10 +588,10 @@ export default function AddVoucherScreen() {
             </View>
             <View style={styles.dateModalActions}>
               <TouchableOpacity style={styles.dateClearBtn} onPress={clearDate}>
-                <Text style={styles.dateClearText}>Clear</Text>
+                <Text style={styles.dateClearText}>{t('clearLabel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.dateConfirmBtn} onPress={confirmDate}>
-                <Text style={styles.dateConfirmText}>Confirm</Text>
+                <Text style={styles.dateConfirmText}>{t('confirmLabel')}</Text>
               </TouchableOpacity>
             </View>
           </View>

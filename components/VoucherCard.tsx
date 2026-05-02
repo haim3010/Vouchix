@@ -1,12 +1,13 @@
 import { View, Text, TouchableOpacity, StyleSheet, Modal } from 'react-native';
 import { useState } from 'react';
 import { router } from 'expo-router';
-import { Voucher, CATEGORY_LABELS } from '@/types';
+import { Voucher } from '@/types';
 import { formatCurrency } from '@/lib/utils/currency';
-import { expiryLabel, expiryUrgency } from '@/lib/utils/expiration';
+import { daysUntilExpiry, expiryUrgency } from '@/lib/utils/expiration';
 import { getBrandInfo } from '@/lib/constants/brands';
 import { colors, radius, spacing, fontSizes } from '@/lib/constants/theme';
 import BrandLogo from '@/components/BrandLogo';
+import { useT } from '@/lib/i18n';
 
 interface Props {
   voucher: Voucher;
@@ -14,10 +15,10 @@ interface Props {
 }
 
 export default function VoucherCard({ voucher, onDelete }: Props) {
+  const t = useT();
   const [confirmVisible, setConfirmVisible] = useState(false);
   const brand = getBrandInfo(voucher.brand);
   const urgency = expiryUrgency(voucher.expires_at);
-  const expiryText = expiryLabel(voucher.expires_at);
   const usedPercent = Math.round(
     ((voucher.original_value - voucher.remaining_value) / voucher.original_value) * 100
   );
@@ -27,7 +28,20 @@ export default function VoucherCard({ voucher, onDelete }: Props) {
     urgency === 'warning' ? colors.warning :
     colors.success;
 
-  const categoryLabel = voucher.category ? CATEGORY_LABELS[voucher.category] : null;
+  const days = daysUntilExpiry(voucher.expires_at);
+  const expiryText =
+    days === null ? t('noExpiry') :
+    days < 0 ? t('expired') :
+    days === 0 ? t('expiresToday') :
+    days === 1 ? t('expiresTomorrow') :
+    `${days} ${t('daysLeft')}`;
+
+  const categoryLabels: Record<string, string> = {
+    shopping: t('catShopping'), food_and_beverage: t('catFood'),
+    restaurants: t('catRestaurants'), culture_and_leisure: t('catCulture'),
+    sports: t('catSports'), other: t('catOther'),
+  };
+  const categoryLabel = voucher.category ? categoryLabels[voucher.category] : null;
 
   return (
     <>
@@ -51,7 +65,7 @@ export default function VoucherCard({ voucher, onDelete }: Props) {
           <View style={styles.cardHeaderRight}>
             {voucher.is_listed && (
               <View style={styles.listedBadge}>
-                <Text style={styles.listedText}>Listed</Text>
+                <Text style={styles.listedText}>{t('listedBadge')}</Text>
               </View>
             )}
             {onDelete && (
@@ -68,12 +82,12 @@ export default function VoucherCard({ voucher, onDelete }: Props) {
 
       <View style={styles.values}>
         <View>
-          <Text style={styles.valueLabel}>Remaining</Text>
+          <Text style={styles.valueLabel}>{t('remaining')}</Text>
           <Text style={styles.valueAmount}>{formatCurrency(voucher.remaining_value, voucher.currency)}</Text>
         </View>
         <View style={styles.valueDivider} />
         <View style={styles.originalValue}>
-          <Text style={styles.valueLabel}>Original</Text>
+          <Text style={styles.valueLabel}>{t('original')}</Text>
           <Text style={styles.originalAmount}>{formatCurrency(voucher.original_value, voucher.currency)}</Text>
         </View>
       </View>
@@ -83,15 +97,15 @@ export default function VoucherCard({ voucher, onDelete }: Props) {
           <View style={styles.progressTrack}>
             <View style={[styles.progressFill, { width: `${usedPercent}%`, backgroundColor: brand.color }]} />
           </View>
-          <Text style={styles.progressLabel}>{usedPercent}% used</Text>
+          <Text style={styles.progressLabel}>{usedPercent}{t('percentUsed')}</Text>
         </View>
       )}
 
         <View style={styles.cardFooter}>
           {voucher.voucher_code ? (
-            <Text style={styles.code} numberOfLines={1}>Code: {voucher.voucher_code}</Text>
+            <Text style={styles.code} numberOfLines={1}>{t('codePrefix')} {voucher.voucher_code}</Text>
           ) : (
-            <Text style={styles.code}>Tap to view details</Text>
+            <Text style={styles.code}>{t('tapToView')}</Text>
           )}
           <Text style={[styles.expiry, { color: urgencyColor }]}>{expiryText}</Text>
         </View>
@@ -100,17 +114,17 @@ export default function VoucherCard({ voucher, onDelete }: Props) {
       <Modal visible={confirmVisible} transparent animationType="fade">
         <View style={styles.overlay}>
           <View style={styles.confirmBox}>
-            <Text style={styles.confirmTitle}>Delete Voucher?</Text>
-            <Text style={styles.confirmSub}>Remove "{voucher.brand}" from your wallet permanently.</Text>
+            <Text style={styles.confirmTitle}>{t('deleteVoucherTitle')}</Text>
+            <Text style={styles.confirmSub}>{voucher.brand} — {t('deleteVoucherMsg')}</Text>
             <View style={styles.confirmBtns}>
               <TouchableOpacity style={styles.cancelBtn} onPress={() => setConfirmVisible(false)}>
-                <Text style={styles.cancelBtnText}>Cancel</Text>
+                <Text style={styles.cancelBtnText}>{t('cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.confirmDeleteBtn}
                 onPress={() => { setConfirmVisible(false); onDelete?.(); }}
               >
-                <Text style={styles.confirmDeleteText}>Delete</Text>
+                <Text style={styles.confirmDeleteText}>{t('delete')}</Text>
               </TouchableOpacity>
             </View>
           </View>
