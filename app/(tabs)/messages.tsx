@@ -24,6 +24,7 @@ import AppHeader from '@/components/AppHeader';
 import { colors, spacing, radius, fontSizes } from '@/lib/constants/theme';
 import { formatCurrency } from '@/lib/utils/currency';
 import { useT } from '@/lib/i18n';
+import { sendTestBuyerReply, getTestBuyerId } from '@/lib/utils/testBuyer';
 
 const STATUS_COLOR: Record<string, string> = {
   pending:   colors.warning,
@@ -102,6 +103,12 @@ export default function MessagesScreen() {
     setDraft('');
     try {
       await sendMessage(currentConversation.offer_id, user.id, text);
+      // If the other party is the test buyer, schedule an auto-reply
+      const tbId = await getTestBuyerId();
+      if (tbId && tbId === currentConversation.other_user_id) {
+        const offerId = currentConversation.offer_id;
+        setTimeout(() => { sendTestBuyerReply(offerId).catch(() => {}); }, 1500);
+      }
     } catch {
       setSendError('Failed to send. Try again.');
       setDraft(text);

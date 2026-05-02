@@ -23,6 +23,7 @@ import UserProfileModal from '@/components/UserProfileModal';
 import AppHeader from '@/components/AppHeader';
 import { colors, spacing, radius, fontSizes } from '@/lib/constants/theme';
 import { formatCurrency } from '@/lib/utils/currency';
+import { simulateTestBuyerOffer } from '@/lib/utils/testBuyer';
 import { Voucher, VoucherClassification, CLASSIFICATION_LABELS } from '@/types';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -306,6 +307,14 @@ export default function MarketplaceScreen() {
         remaining_value: balance,
         notes: notesContent || selectedVoucher.notes,
       });
+      // Auto-offer from test buyer (dev only — no-op if testbuyer profile doesn't exist)
+      simulateTestBuyerOffer({
+        voucherId: selectedVoucher.id,
+        brand: selectedVoucher.brand,
+        listingPrice: price,
+        remainingValue: balance,
+        sellerId: user.id,
+      }).catch(() => {});
       await fetchListings();
       await fetchVouchers(user.id);
       setListModalVisible(false);
