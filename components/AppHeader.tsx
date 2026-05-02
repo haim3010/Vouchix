@@ -1,5 +1,9 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Image } from 'react-native';
 import { colors, spacing, fontSizes } from '@/lib/constants/theme';
+
+// To use your real logo: save it to assets/logo.png and uncomment the import below.
+// const logoSource = require('@/assets/logo.png');
+const logoSource: number | null = null;
 
 interface Props {
   subtitle?: string;
@@ -9,12 +13,16 @@ export default function AppHeader({ subtitle }: Props) {
   return (
     <View style={styles.container}>
       <View style={styles.row}>
-        <View style={styles.logoMark}>
-          <Text style={styles.bagEmoji}>🛍️</Text>
-          <View style={styles.coin}>
-            <Text style={styles.coinSymbol}>$</Text>
+        {logoSource ? (
+          <Image source={logoSource} style={styles.logoImage} resizeMode="contain" />
+        ) : (
+          <View style={styles.logoMark}>
+            <Text style={styles.bagEmoji}>🛍️</Text>
+            <View style={styles.coin}>
+              <Text style={styles.coinSymbol}>$</Text>
+            </View>
           </View>
-        </View>
+        )}
         <Text style={styles.name}>
           Vouchi<Text style={styles.nameAccent}>X</Text>
         </Text>
@@ -35,6 +43,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
+  },
+  logoImage: {
+    width: 36,
+    height: 36,
+    borderRadius: 6,
   },
   logoMark: {
     width: 32,

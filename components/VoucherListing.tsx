@@ -189,11 +189,11 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: radius.pill,
   },
-  saleBadge: { backgroundColor: colors.success + '20' },
-  tradeBadge: { backgroundColor: '#FFF3CD' },
+  saleBadge: { backgroundColor: colors.gold + '30' },
+  tradeBadge: { backgroundColor: colors.accent + '20' },
   badgeText: { fontSize: fontSizes.xs, fontWeight: '700' },
-  saleBadgeText: { color: colors.success },
-  tradeBadgeText: { color: '#B8860B' },
+  saleBadgeText: { color: '#8A6500' },
+  tradeBadgeText: { color: colors.primary },
 
   // Discount badge
   discountBadge: {
@@ -226,16 +226,16 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  listingPrice: { fontSize: fontSizes.xxl, fontWeight: '800', color: colors.secondary },
-  tradeLabel: { fontSize: fontSizes.xxl, fontWeight: '800', color: '#B8860B' },
+  listingPrice: { fontSize: fontSizes.xxl, fontWeight: '800', color: colors.primary },
+  tradeLabel: { fontSize: fontSizes.xxl, fontWeight: '800', color: colors.primary },
   originalPrice: { fontSize: fontSizes.sm, color: colors.textMuted, textDecorationLine: 'line-through' },
   savingsBadge: {
-    backgroundColor: colors.success + '20',
+    backgroundColor: colors.gold + '30',
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
     borderRadius: radius.md,
   },
-  savingsText: { color: colors.success, fontSize: fontSizes.sm, fontWeight: '700' },
+  savingsText: { color: '#8A6500', fontSize: fontSizes.sm, fontWeight: '800' },
 
   // Seller row
   sellerRow: {

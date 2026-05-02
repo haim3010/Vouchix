@@ -156,7 +156,7 @@ export default function WalletScreen() {
           </View>
           <View style={styles.summaryCard}>
             <View style={styles.summaryItem}>
-              <Text style={styles.summaryValue}>{formatCurrency(totalValue)}</Text>
+              <Text style={[styles.summaryValue, { color: colors.gold }]}>{formatCurrency(totalValue)}</Text>
               <Text style={styles.summaryLabel}>{t('totalValue')}</Text>
             </View>
             <View style={styles.summaryDivider} />

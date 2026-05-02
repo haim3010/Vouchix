@@ -203,7 +203,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   valueLabel: { fontSize: fontSizes.xs, color: colors.textMuted, fontWeight: '500' },
-  valueAmount: { fontSize: fontSizes.xxl, fontWeight: '800', color: colors.text },
+  valueAmount: { fontSize: fontSizes.xxl, fontWeight: '800', color: colors.primary },
   valueDivider: { width: 1, height: 36, backgroundColor: colors.border, marginHorizontal: spacing.md },
   originalValue: {},
   originalAmount: {
