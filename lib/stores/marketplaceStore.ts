@@ -54,6 +54,7 @@ interface MarketplaceState {
   counterOffer: (offerId: string, newAmount: number) => Promise<void>;
   setBrandFilter: (brand: string | null) => void;
   setSortBy: (sort: MarketplaceState['sortBy']) => void;
+  applyVoucherUpdate: (id: string, patch: Partial<Voucher>) => void;
 }
 
 export const useMarketplaceStore = create<MarketplaceState>((set, get) => ({
@@ -234,4 +235,10 @@ export const useMarketplaceStore = create<MarketplaceState>((set, get) => ({
 
   setBrandFilter: (brand) => set({ brandFilter: brand }),
   setSortBy: (sort) => set({ sortBy: sort }),
+
+  applyVoucherUpdate: (id, patch) => set((state) => ({
+    listings: state.listings
+      .map((l) => l.id === id ? { ...l, ...patch } as ListingWithSeller : l)
+      .filter((l) => l.is_listed !== false && l.status !== 'used' && l.status !== 'expired' && l.status !== 'sold'),
+  })),
 }));

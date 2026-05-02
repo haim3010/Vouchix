@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { supabase } from '@/lib/supabase';
 import { Voucher } from '@/types';
+import { useMarketplaceStore } from './marketplaceStore';
 
 interface WalletState {
   vouchers: Voucher[];
@@ -89,6 +90,9 @@ export const useWalletStore = create<WalletState>((set) => ({
       set((state) => ({
         vouchers: state.vouchers.map((v) => v.id === id ? { ...v, ...patch } as Voucher : v),
       }));
+
+      // Keep marketplace in sync instantly
+      useMarketplaceStore.getState().applyVoucherUpdate(id, patch);
     } catch (e) {
       const msg = extractMessage(e, 'Failed to update voucher');
       set({ error: msg });

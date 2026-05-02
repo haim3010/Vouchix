@@ -12,7 +12,8 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useFocusEffect } from 'expo-router';
 import { useMarketplaceStore, ListingWithSeller } from '@/lib/stores/marketplaceStore';
 import { useAuthStore } from '@/lib/stores/authStore';
 import { useT } from '@/lib/i18n';
@@ -129,6 +130,7 @@ export default function MarketplaceScreen() {
   const [editError, setEditError] = useState('');
 
   useEffect(() => { fetchListings(); }, []);
+  useFocusEffect(useCallback(() => { fetchListings(); }, [fetchListings]));
 
   // ── Derived: wallet lists ──
   const myListings = vouchers.filter((v) => v.is_listed && v.status === 'active');
