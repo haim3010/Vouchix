@@ -2,9 +2,9 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { ListingWithSeller } from '@/lib/stores/marketplaceStore';
 import { getBrandInfo } from '@/lib/constants/brands';
 import { formatCurrency, discountPercent } from '@/lib/utils/currency';
-import { expiryLabel, expiryUrgency } from '@/lib/utils/expiration';
+import { expiryUrgency } from '@/lib/utils/expiration';
 import { colors, radius, spacing, fontSizes } from '@/lib/constants/theme';
-import { CLASSIFICATION_LABELS } from '@/types';
+import { useT } from '@/lib/i18n';
 import BrandLogo from '@/components/BrandLogo';
 
 interface Props {
@@ -16,6 +16,7 @@ interface Props {
 }
 
 export default function VoucherListing({ listing, onPress, onOffer, onSellerPress, isOwn = false }: Props) {
+  const t = useT();
   const brand = getBrandInfo(listing.brand);
   const isTrade = listing.listing_price === null;
   const discount = !isTrade && listing.listing_price
@@ -29,7 +30,11 @@ export default function VoucherListing({ listing, onPress, onOffer, onSellerPres
     : null;
 
   const isDigital = listing.voucher_type === 'digital';
-  const classLabel = listing.classification ? CLASSIFICATION_LABELS[listing.classification] : null;
+  const classLabels: Record<string, string> = {
+    credit: t('classCredit'), regular_voucher: t('classRegular'),
+    gift_card: t('classGiftCard'), voucher_group: t('classGroup'),
+  };
+  const classLabel = listing.classification ? classLabels[listing.classification] : null;
 
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.85}>
@@ -43,13 +48,13 @@ export default function VoucherListing({ listing, onPress, onOffer, onSellerPres
           {/* Sale / Trade badge */}
           <View style={[styles.badge, isTrade ? styles.tradeBadge : styles.saleBadge]}>
             <Text style={[styles.badgeText, isTrade ? styles.tradeBadgeText : styles.saleBadgeText]}>
-              {isTrade ? '🔄 Trade' : '💰 Sale'}
+              {isTrade ? `🔄 ${t('tradeBadge')}` : `💰 ${t('saleBadge')}`}
             </Text>
           </View>
           {/* Discount badge */}
           {discount > 0 && (
             <View style={styles.discountBadge}>
-              <Text style={styles.discountText}>{discount}% OFF</Text>
+              <Text style={styles.discountText}>{discount}% {t('offBadge')}</Text>
             </View>
           )}
         </View>
@@ -64,7 +69,7 @@ export default function VoucherListing({ listing, onPress, onOffer, onSellerPres
         )}
         <View style={[styles.metaBadge, isDigital ? styles.metaBadgeBlue : styles.metaBadgeAmber]}>
           <Text style={[styles.metaBadgeText, isDigital ? styles.metaBadgeBlueText : styles.metaBadgeAmberText]}>
-            {isDigital ? '⚡ Digital transfer' : '🤝 Coordination required'}
+            {isDigital ? t('instantTransfer') : t('coordinationRequired')}
           </Text>
         </View>
       </View>
@@ -74,8 +79,8 @@ export default function VoucherListing({ listing, onPress, onOffer, onSellerPres
         <View>
           {isTrade ? (
             <>
-              <Text style={styles.tradeLabel}>Trade</Text>
-              <Text style={styles.originalPrice}>{formatCurrency(listing.original_value)} face value</Text>
+              <Text style={styles.tradeLabel}>{t('tradeBadge')}</Text>
+              <Text style={styles.originalPrice}>{formatCurrency(listing.original_value)} {t('faceValueLabel')}</Text>
             </>
           ) : (
             <>
@@ -90,7 +95,7 @@ export default function VoucherListing({ listing, onPress, onOffer, onSellerPres
         </View>
         {!isTrade && savings > 0 && (
           <View style={styles.savingsBadge}>
-            <Text style={styles.savingsText}>Save {formatCurrency(savings)}</Text>
+            <Text style={styles.savingsText}>{t('saveLabel')} {formatCurrency(savings)}</Text>
           </View>
         )}
       </View>
@@ -111,9 +116,9 @@ export default function VoucherListing({ listing, onPress, onOffer, onSellerPres
           onPress={(e) => { e.stopPropagation(); onSellerPress?.(); }}
           disabled={!onSellerPress}
         >
-          <Text style={styles.sellerName}>{listing.seller?.display_name ?? 'Seller'}</Text>
+          <Text style={styles.sellerName}>{listing.seller?.display_name ?? t('sellerLabel')}</Text>
           <Text style={styles.sellerRating}>
-            ⭐ {(listing.seller?.rating ?? 5).toFixed(1)} · {listing.seller?.total_trades ?? 0} trades
+            ⭐ {(listing.seller?.rating ?? 5).toFixed(1)} · {listing.seller?.total_trades ?? 0} {t('tradesLabel')}
           </Text>
         </TouchableOpacity>
         {daysLeft !== null && (
@@ -123,7 +128,7 @@ export default function VoucherListing({ listing, onPress, onOffer, onSellerPres
             daysLeft < 90 ? { color: colors.warning } :
             { color: colors.textMuted },
           ]}>
-            {daysLeft < 0 ? 'Expired' : `${daysLeft}d left`}
+            {daysLeft < 0 ? t('expiredShort') : `${daysLeft}${t('daysLeftShort')}`}
           </Text>
         )}
       </View>
@@ -131,14 +136,14 @@ export default function VoucherListing({ listing, onPress, onOffer, onSellerPres
       {/* CTA */}
       {isOwn ? (
         <View style={styles.ownBadge}>
-          <Text style={styles.ownBadgeText}>🏷️ Your Listing</Text>
+          <Text style={styles.ownBadgeText}>{t('yourListingBadge')}</Text>
         </View>
       ) : (
         <TouchableOpacity
           style={[styles.offerButton, { backgroundColor: brand.color }]}
           onPress={(e) => { e.stopPropagation(); onOffer(); }}
         >
-          <Text style={styles.offerButtonText}>{isTrade ? 'Propose Trade' : 'Make Offer'}</Text>
+          <Text style={styles.offerButtonText}>{isTrade ? t('proposeTradeBtn') : t('makeOfferBtn')}</Text>
         </TouchableOpacity>
       )}
     </TouchableOpacity>

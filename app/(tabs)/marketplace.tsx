@@ -477,8 +477,8 @@ export default function MarketplaceScreen() {
         <Text style={styles.title}>{t('marketplace')}</Text>
         <Text style={styles.subtitle}>
           {mode === 'global'
-            ? `${listings.length} voucher${listings.length !== 1 ? 's' : ''} listed`
-            : `${myListings.length} of your listings`}
+            ? `${listings.length} ${t('vouchersListed')}`
+            : `${myListings.length} ${t('yourListingsCount')}`}
         </Text>
       </View>
 
@@ -520,7 +520,7 @@ export default function MarketplaceScreen() {
           <Text style={styles.searchIcon}>🔍</Text>
           <TextInput
             style={styles.searchBarInput}
-            placeholder="Search brand, voucher type..."
+            placeholder={t('searchBrandPlaceholder')}
             placeholderTextColor={colors.textMuted}
             value={globalSearch}
             onChangeText={setGlobalSearch}
@@ -559,13 +559,13 @@ export default function MarketplaceScreen() {
             loading ? null : (
               <View style={styles.empty}>
                 <Text style={styles.emptyEmoji}>🔍</Text>
-                <Text style={styles.emptyTitle}>No vouchers found</Text>
+                <Text style={styles.emptyTitle}>{t('noVouchersFound')}</Text>
                 <Text style={styles.emptySubtitle}>
-                  No vouchers match your search. Try adjusting the filters.
+                  {t('noVouchersFoundSub')}
                 </Text>
                 {activeFilterCount > 0 && (
                   <TouchableOpacity style={styles.clearFiltersBtn} onPress={resetFilters}>
-                    <Text style={styles.clearFiltersBtnText}>Clear Filters</Text>
+                    <Text style={styles.clearFiltersBtnText}>{t('clearFilters')}</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -593,14 +593,14 @@ export default function MarketplaceScreen() {
           }
         >
           <TouchableOpacity style={styles.addListingBtn} onPress={() => { resetListModal(); setListModalVisible(true); }}>
-            <Text style={styles.addListingBtnText}>+ List a Voucher</Text>
+            <Text style={styles.addListingBtnText}>{t('listVoucherBtn')}</Text>
           </TouchableOpacity>
 
           {myListings.length === 0 ? (
             <View style={styles.empty}>
               <Text style={styles.emptyEmoji}>🏷️</Text>
-              <Text style={styles.emptyTitle}>No active listings</Text>
-              <Text style={styles.emptySubtitle}>Tap "List a Voucher" to start selling</Text>
+              <Text style={styles.emptyTitle}>{t('noListingsTitle')}</Text>
+              <Text style={styles.emptySubtitle}>{t('noListingsSub')}</Text>
             </View>
           ) : (
             myListings.map((v) => (
@@ -608,10 +608,10 @@ export default function MarketplaceScreen() {
                 <View style={styles.myCardTop}>
                   <View style={styles.myCardInfo}>
                     <Text style={styles.myCardBrand}>{v.brand}</Text>
-                    <Text style={styles.myCardSub}>Face value: {formatCurrency(v.original_value)}</Text>
+                    <Text style={styles.myCardSub}>{t('faceValuePrefix')} {formatCurrency(v.original_value)}</Text>
                     <View style={styles.myCardLiveBadge}>
                       <Text style={styles.myCardLiveDot}>●</Text>
-                      <Text style={styles.myCardLiveText}>Live in Global Market</Text>
+                      <Text style={styles.myCardLiveText}>{t('liveInGlobal')}</Text>
                     </View>
                   </View>
                   <View style={styles.myCardPriceCol}>
@@ -629,10 +629,10 @@ export default function MarketplaceScreen() {
                 </View>
                 <View style={styles.myCardActions}>
                   <TouchableOpacity style={styles.editListingBtn} onPress={() => openEditModal(v)}>
-                    <Text style={styles.editListingBtnText}>✏️ Edit Price</Text>
+                    <Text style={styles.editListingBtnText}>{t('editPriceBtn')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.delistBtn} onPress={() => setDelistTarget(v)}>
-                    <Text style={styles.delistBtnText}>📤 Remove from Market</Text>
+                    <Text style={styles.delistBtnText}>{t('removeFromMarketBtn')}</Text>
                   </TouchableOpacity>
                 </View>
               </View>

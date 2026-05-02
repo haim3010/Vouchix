@@ -171,9 +171,9 @@ export default function ProfileScreen() {
 
   return (
     <View style={styles.container}>
-      <AppHeader subtitle="Account & settings" />
+      <AppHeader subtitle={t('accountSettings')} />
       <View style={styles.header}>
-        <Text style={styles.title}>Profile</Text>
+        <Text style={styles.title}>{t('profileTitle')}</Text>
       </View>
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
@@ -193,7 +193,7 @@ export default function ProfileScreen() {
             <View style={styles.ratingRow}>
               <Text>⭐</Text>
               <Text style={styles.rating}>{profile.rating.toFixed(1)}</Text>
-              <Text style={styles.trades}> · {profile.total_trades} trades</Text>
+              <Text style={styles.trades}> · {profile.total_trades} {t('tradesLabel')}</Text>
             </View>
           )}
         </View>

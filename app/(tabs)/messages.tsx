@@ -32,13 +32,6 @@ const STATUS_COLOR: Record<string, string> = {
   cancelled: colors.textMuted,
   completed: colors.secondary,
 };
-const STATUS_LABEL: Record<string, string> = {
-  pending:   'Pending',
-  accepted:  'Accepted ✓',
-  rejected:  'Rejected',
-  cancelled: 'Cancelled',
-  completed: 'Completed ✓',
-};
 
 export default function MessagesScreen() {
   const { user } = useAuthStore();
@@ -62,6 +55,13 @@ export default function MessagesScreen() {
   const [showCompleteConfirm, setShowCompleteConfirm] = useState(false);
   const [ratingTarget, setRatingTarget] = useState<{ userId: string; name: string } | null>(null);
   const t = useT();
+  const statusLabel: Record<string, string> = {
+    pending: t('statusPending'),
+    accepted: t('statusAccepted'),
+    rejected: t('statusRejected'),
+    cancelled: t('statusCancelled'),
+    completed: t('statusCompleted'),
+  };
 
   const flatListRef = useRef<FlatList<ChatMessage>>(null);
   const unsubRef = useRef<(() => void) | null>(null);
@@ -257,11 +257,11 @@ export default function MessagesScreen() {
           </Text>
           <View style={styles.convBottomRow}>
             <Text style={styles.convPreview} numberOfLines={1}>
-              {item.last_message ?? item.offer_message ?? 'No messages yet'}
+              {item.last_message ?? item.offer_message ?? t('noMessagesYet')}
             </Text>
             <View style={[styles.statusPill, { backgroundColor: statusColor + '20' }]}>
               <Text style={[styles.statusPillText, { color: statusColor }]}>
-                {STATUS_LABEL[item.offer_status] ?? item.offer_status}
+                {statusLabel[item.offer_status] ?? item.offer_status}
               </Text>
             </View>
           </View>
@@ -351,7 +351,7 @@ export default function MessagesScreen() {
           <View style={styles.offerSummaryRight}>
             <View style={[styles.statusPill, { backgroundColor: statusColor + '20' }]}>
               <Text style={[styles.statusPillText, { color: statusColor }]}>
-                {STATUS_LABEL[conv.offer_status]}
+                {statusLabel[conv.offer_status]}
               </Text>
             </View>
           </View>
@@ -547,11 +547,11 @@ export default function MessagesScreen() {
 
   return (
     <View style={styles.container}>
-      <AppHeader subtitle="Negotiate, chat, close deals here" />
+      <AppHeader subtitle={t('offersSubtitle')} />
       <View style={styles.pageHeader}>
-        <Text style={styles.pageTitle}>Offers</Text>
+        <Text style={styles.pageTitle}>{t('offersTitle')}</Text>
         <Text style={styles.pageSubtitle}>
-          {conversations.length} active deal{conversations.length !== 1 ? 's' : ''}
+          {conversations.length} {conversations.length === 1 ? t('activeDealLabel') : t('activeDealsLabel')}
         </Text>
       </View>
 
@@ -576,8 +576,8 @@ export default function MessagesScreen() {
           }
           showsVerticalScrollIndicator={false}
         >
-          {renderSection('My Purchases', '🛒', purchases)}
-          {renderSection('My Sales', '🏷️', sales)}
+          {renderSection(t('myPurchases'), '🛒', purchases)}
+          {renderSection(t('mySales'), '🏷️', sales)}
         </ScrollView>
       )}
 
