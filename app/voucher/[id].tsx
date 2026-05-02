@@ -104,10 +104,10 @@ export default function VoucherDetailScreen() {
           setUsedModalVisible(false);
           router.back();
         } else {
-          // If listed and the listing price is now >= new remaining, delist automatically
+          // If listed and listing price now exceeds new remaining, cap it at new remaining
           const delistPatch =
-            voucher.is_listed && voucher.listing_price != null && voucher.listing_price >= newRemaining
-              ? { is_listed: false, listing_price: null }
+            voucher.is_listed && voucher.listing_price != null && voucher.listing_price > newRemaining
+              ? { listing_price: newRemaining }
               : {};
           await updateVoucher(voucher.id, { remaining_value: newRemaining, ...delistPatch });
           setUsedModalVisible(false);
