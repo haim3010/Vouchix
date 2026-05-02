@@ -42,13 +42,18 @@ export async function simulateTestBuyerOffer(args: SimulateOfferArgs): Promise<s
     })
     .select('id')
     .single();
-  if (error || !offer) return null;
+  if (error || !offer) {
+    console.warn('[testBuyer] failed to create offer:', error);
+    return null;
+  }
+  console.log('[testBuyer] created offer:', offer.id);
 
-  await supabase.from('messages').insert({
+  const { error: msgErr } = await supabase.from('messages').insert({
     offer_id: offer.id,
     sender_id: tbId,
     content: 'Let me know if this works for you 🙏',
   });
+  if (msgErr) console.warn('[testBuyer] failed to create message:', msgErr);
 
   return offer.id;
 }

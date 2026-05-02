@@ -46,6 +46,7 @@ interface MessagesState {
   updateConversationAmount: (offerId: string, amount: number) => void;
   subscribeToMessages: (offerId: string) => () => void;
   subscribeToOffers: (userId: string) => () => void;
+  deleteConversation: (offerId: string) => Promise<void>;
 }
 
 // Parse trade info that was encoded into the offer message as a prefix
@@ -305,5 +306,17 @@ export const useMessagesStore = create<MessagesState>((set, get) => ({
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
+  },
+
+  deleteConversation: async (offerId: string) => {
+    // Delete messages first (in case CASCADE isn't set), then the offer
+    await supabase.from('messages').delete().eq('offer_id', offerId);
+    const { error } = await supabase.from('offers').delete().eq('id', offerId);
+    if (error) throw error;
+    set((state) => ({
+      conversations: state.conversations.filter((c) => c.offer_id !== offerId),
+      currentConversation: state.currentConversation?.offer_id === offerId ? null : state.currentConversation,
+      currentMessages: state.currentConversation?.offer_id === offerId ? [] : state.currentMessages,
+    }));
   },
 }));

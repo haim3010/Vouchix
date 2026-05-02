@@ -41,8 +41,10 @@ export default function MessagesScreen() {
     loadingConversations, loadingMessages, sending,
     fetchConversations, openConversation, closeConversation,
     sendMessage, subscribeToMessages, subscribeToOffers,
-    updateConversationStatus, updateConversationAmount,
+    updateConversationStatus, updateConversationAmount, deleteConversation,
   } = useMessagesStore();
+  const [deleteTarget, setDeleteTarget] = useState<Conversation | null>(null);
+  const [deletingConv, setDeletingConv] = useState(false);
   const { completeOffer, cancelOffer, counterOffer, respondToOffer } = useMarketplaceStore();
 
   const [draft, setDraft] = useState('');
@@ -273,6 +275,13 @@ export default function MessagesScreen() {
             </View>
           </View>
         </View>
+        <TouchableOpacity
+          onPress={(e) => { e.stopPropagation?.(); setDeleteTarget(item); }}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          style={{ paddingHorizontal: 8, paddingVertical: 4 }}
+        >
+          <Text style={{ fontSize: 18 }}>🗑</Text>
+        </TouchableOpacity>
       </TouchableOpacity>
     );
   }
@@ -718,11 +727,56 @@ export default function MessagesScreen() {
         partnerName={ratingTarget?.name ?? ''}
         onClose={() => setRatingTarget(null)}
       />
+
+      {/* ══ DELETE CONVERSATION CONFIRM ══ */}
+      <Modal visible={!!deleteTarget} transparent animationType="fade">
+        <View style={styles.confirmOverlay}>
+          <View style={styles.confirmCard}>
+            <Text style={styles.confirmCardTitle}>{t('removeFromHistory')}</Text>
+            <Text style={styles.confirmCardSub}>
+              {deleteTarget?.other_user_name} · {deleteTarget?.voucher_brand}
+            </Text>
+            <View style={styles.confirmCardBtns}>
+              <TouchableOpacity
+                style={styles.confirmCancelBtn}
+                onPress={() => setDeleteTarget(null)}
+                disabled={deletingConv}
+              >
+                <Text style={styles.confirmCancelText}>{t('cancel')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.confirmDeleteBtn}
+                onPress={async () => {
+                  if (!deleteTarget) return;
+                  setDeletingConv(true);
+                  try { await deleteConversation(deleteTarget.offer_id); }
+                  finally { setDeletingConv(false); setDeleteTarget(null); }
+                }}
+                disabled={deletingConv}
+              >
+                <Text style={styles.confirmDeleteText}>
+                  {deletingConv ? t('deleting') : t('delete')}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  confirmOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center', padding: spacing.lg },
+  confirmCard: { backgroundColor: colors.cardBg, borderRadius: radius.lg, padding: spacing.lg, width: '100%', maxWidth: 320 },
+  confirmCardTitle: { fontSize: fontSizes.lg, fontWeight: '800', color: colors.text, marginBottom: spacing.xs },
+  confirmCardSub: { fontSize: fontSizes.sm, color: colors.textMuted, marginBottom: spacing.lg },
+  confirmCardBtns: { flexDirection: 'row', gap: spacing.sm },
+  confirmCancelBtn: { flex: 1, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, alignItems: 'center' },
+  confirmCancelText: { color: colors.textMuted, fontWeight: '600' },
+  confirmDeleteBtn: { flex: 1, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.error, alignItems: 'center' },
+  confirmDeleteText: { color: colors.white, fontWeight: '700' },
+
   container: { flex: 1, backgroundColor: colors.bgLight },
 
   pageHeader: {
