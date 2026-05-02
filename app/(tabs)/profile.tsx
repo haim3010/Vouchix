@@ -10,7 +10,8 @@ import {
   Switch,
   Image,
 } from 'react-native';
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useFocusEffect } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import Svg, { Path, Circle, Defs, LinearGradient, Stop, Text as SvgText } from 'react-native-svg';
 import { useAuthStore } from '@/lib/stores/authStore';
@@ -18,7 +19,9 @@ import { useWalletStore } from '@/lib/stores/walletStore';
 import { useLanguageStore, useT } from '@/lib/i18n';
 import { colors, spacing, radius, fontSizes } from '@/lib/constants/theme';
 import { formatCurrency } from '@/lib/utils/currency';
+import { supabase } from '@/lib/supabase';
 import AppHeader from '@/components/AppHeader';
+import UserProfileModal from '@/components/UserProfileModal';
 
 const ISRAELI_BANKS = [
   'Bank Hapoalim', 'Bank Leumi', 'Discount Bank', 'Mizrahi Tefahot',
@@ -26,8 +29,8 @@ const ISRAELI_BANKS = [
   'Mercantile Discount Bank', 'Union Bank of Israel',
 ];
 
-// ─── Sparkline chart ──────────────────────────────────────────────────────────
-function TradeHistoryChart({ vouchers }: { vouchers: { created_at: string; original_value: number }[] }) {
+// ─── Sparkline chart — completed deals over last 6 months ─────────────────────
+function TradeHistoryChart({ deals }: { deals: { completed_at: string; amount: number }[] }) {
   const width = 300;
   const height = 110;
   const pad = 24;
@@ -39,12 +42,12 @@ function TradeHistoryChart({ vouchers }: { vouchers: { created_at: string; origi
   });
 
   const data = months.map(({ month, year }) =>
-    vouchers
-      .filter((v) => {
-        const d = new Date(v.created_at);
-        return d.getMonth() === month && d.getFullYear() === year;
+    deals
+      .filter((d) => {
+        const dt = new Date(d.completed_at);
+        return dt.getMonth() === month && dt.getFullYear() === year;
       })
-      .reduce((s, v) => s + v.original_value, 0),
+      .reduce((s, d) => s + d.amount, 0),
   );
 
   const maxVal = Math.max(...data, 1);
@@ -78,14 +81,45 @@ function TradeHistoryChart({ vouchers }: { vouchers: { created_at: string; origi
 }
 
 // ─── Screen ──────────────────────────────────────────────────────────────────
+interface CompletedDeal { completed_at: string; amount: number; brand: string; }
+
 export default function ProfileScreen() {
-  const { user, profile, signOut } = useAuthStore();
+  const { user, profile, signOut, fetchProfile } = useAuthStore();
   const { vouchers } = useWalletStore();
   const { language, setLanguage } = useLanguageStore();
   const t = useT();
 
   const [signingOut, setSigningOut] = useState(false);
-  const [avatarUri, setAvatarUri] = useState<string | null>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [completedDeals, setCompletedDeals] = useState<CompletedDeal[]>([]);
+  const [showSelfProfile, setShowSelfProfile] = useState(false);
+
+  // Refresh profile (and trade count) every time the tab is focused
+  const refreshProfile = useCallback(() => {
+    if (user?.id) fetchProfile(user.id);
+  }, [user?.id, fetchProfile]);
+  useFocusEffect(refreshProfile);
+
+  // Fetch completed deals where I'm buyer or seller for the trade history chart
+  useEffect(() => {
+    if (!user?.id) return;
+    (async () => {
+      const { data } = await supabase
+        .from('offers')
+        .select('id, offer_amount, updated_at, buyer_id, voucher:vouchers!offers_voucher_id_fkey(brand, owner_id)')
+        .eq('status', 'completed');
+      const rows = (data ?? []) as Array<{
+        id: string; offer_amount: number; updated_at: string; buyer_id: string;
+        voucher: { brand: string; owner_id: string } | null;
+      }>;
+      const mine = rows.filter((r) => r.buyer_id === user.id || r.voucher?.owner_id === user.id);
+      setCompletedDeals(mine.map((r) => ({
+        completed_at: r.updated_at,
+        amount: r.offer_amount,
+        brand: r.voucher?.brand ?? '',
+      })));
+    })();
+  }, [user?.id, profile?.total_trades]);
 
   // Which modal is open
   const [openModal, setOpenModal] = useState<'payment' | 'history' | 'notifications' | 'security' | null>(null);
@@ -129,13 +163,40 @@ export default function ProfileScreen() {
     : (user?.email?.[0] ?? '?').toUpperCase();
 
   async function pickAvatar() {
+    if (!user?.id) return;
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
     });
-    if (!result.canceled && result.assets[0]) setAvatarUri(result.assets[0].uri);
+    if (result.canceled || !result.assets[0]) return;
+    const uri = result.assets[0].uri;
+    setAvatarUploading(true);
+    try {
+      // Fetch the file as blob (works on web; on native expo-file-system would be better)
+      const res = await fetch(uri);
+      const blob = await res.blob();
+      const ext = (blob.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg');
+      const path = `${user.id}/avatar.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from('avatars')
+        .upload(path, blob, { contentType: blob.type, upsert: true });
+      if (upErr) throw upErr;
+      const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path);
+      // Cache-bust by appending timestamp so the new image shows immediately
+      const finalUrl = `${publicUrl}?t=${Date.now()}`;
+      const { error: updErr } = await supabase
+        .from('profiles')
+        .update({ avatar_url: finalUrl })
+        .eq('id', user.id);
+      if (updErr) throw updErr;
+      await fetchProfile(user.id);
+    } catch (e) {
+      console.warn('avatar upload failed:', e);
+    } finally {
+      setAvatarUploading(false);
+    }
   }
 
   async function confirmSignOut() {
@@ -179,22 +240,32 @@ export default function ProfileScreen() {
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
         {/* Avatar */}
         <View style={styles.profileCard}>
-          <TouchableOpacity style={styles.avatarWrapper} onPress={pickAvatar}>
-            {avatarUri
-              ? <Image source={{ uri: avatarUri }} style={styles.avatarImage} />
+          <TouchableOpacity
+            style={styles.avatarWrapper}
+            onPress={() => user?.id && setShowSelfProfile(true)}
+            onLongPress={pickAvatar}
+            disabled={avatarUploading}
+          >
+            {profile?.avatar_url
+              ? <Image source={{ uri: profile.avatar_url }} style={styles.avatarImage} />
               : <View style={styles.avatar}><Text style={styles.avatarText}>{initials}</Text></View>}
-            <View style={styles.avatarEditBadge}>
-              <Text style={styles.avatarEditIcon}>📷</Text>
-            </View>
+            <TouchableOpacity style={styles.avatarEditBadge} onPress={pickAvatar} disabled={avatarUploading}>
+              {avatarUploading
+                ? <ActivityIndicator color={colors.white} size="small" />
+                : <Text style={styles.avatarEditIcon}>📷</Text>}
+            </TouchableOpacity>
           </TouchableOpacity>
           <Text style={styles.displayName}>{profile?.display_name ?? 'User'}</Text>
           <Text style={styles.email}>{user?.email}</Text>
           {profile?.rating != null && (
-            <View style={styles.ratingRow}>
+            <TouchableOpacity
+              style={styles.ratingRow}
+              onPress={() => user?.id && setShowSelfProfile(true)}
+            >
               <Text>⭐</Text>
               <Text style={styles.rating}>{profile.rating.toFixed(1)}</Text>
               <Text style={styles.trades}> · {profile.total_trades} {t('tradesLabel')}</Text>
-            </View>
+            </TouchableOpacity>
           )}
         </View>
 
@@ -422,40 +493,34 @@ export default function ProfileScreen() {
             <View style={{ width: 56 }} />
           </View>
           <ScrollView style={styles.modalScroll} contentContainerStyle={styles.modalBody}>
-            <Text style={styles.chartTitle}>Voucher Value Added (6 months)</Text>
+            <Text style={styles.chartTitle}>Completed Deals (6 months)</Text>
             <View style={styles.chartArea}>
-              <TradeHistoryChart vouchers={vouchers} />
+              <TradeHistoryChart deals={completedDeals} />
             </View>
             <View style={styles.chartStats}>
               <View style={styles.chartStatItem}>
-                <Text style={styles.chartStatValue}>{vouchers.length}</Text>
-                <Text style={styles.chartStatLabel}>Total vouchers added</Text>
+                <Text style={styles.chartStatValue}>{completedDeals.length}</Text>
+                <Text style={styles.chartStatLabel}>Total completed deals</Text>
               </View>
               <View style={styles.chartStatItem}>
                 <Text style={styles.chartStatValue}>
-                  {formatCurrency(vouchers.reduce((s, v) => s + v.original_value, 0))}
+                  {formatCurrency(completedDeals.reduce((s, d) => s + d.amount, 0))}
                 </Text>
-                <Text style={styles.chartStatLabel}>Total face value</Text>
+                <Text style={styles.chartStatLabel}>Total deal value</Text>
               </View>
             </View>
             <View style={styles.historyList}>
-              {vouchers.slice(0, 10).map((v) => (
-                <View key={v.id} style={styles.historyRow}>
+              {completedDeals.slice(0, 10).map((d, i) => (
+                <View key={i} style={styles.historyRow}>
                   <View style={styles.historyLeft}>
-                    <Text style={styles.historyBrand}>{v.brand}</Text>
-                    <Text style={styles.historyDate}>{new Date(v.created_at).toLocaleDateString('en-GB')}</Text>
+                    <Text style={styles.historyBrand}>{d.brand}</Text>
+                    <Text style={styles.historyDate}>{new Date(d.completed_at).toLocaleDateString('en-GB')}</Text>
                   </View>
-                  <Text style={[
-                    styles.historyVal,
-                    v.status === 'expired' && { color: colors.error },
-                    v.status === 'used' && { color: colors.textMuted },
-                  ]}>
-                    {formatCurrency(v.original_value)}
-                  </Text>
+                  <Text style={styles.historyVal}>{formatCurrency(d.amount)}</Text>
                 </View>
               ))}
-              {vouchers.length === 0 && (
-                <Text style={styles.emptyText}>No vouchers added yet</Text>
+              {completedDeals.length === 0 && (
+                <Text style={styles.emptyText}>No completed deals yet</Text>
               )}
             </View>
           </ScrollView>
@@ -529,6 +594,12 @@ export default function ProfileScreen() {
           </ScrollView>
         </View>
       </Modal>
+
+      {/* ══ SELF PROFILE / REVIEWS MODAL ══ */}
+      <UserProfileModal
+        userId={showSelfProfile && user?.id ? user.id : null}
+        onClose={() => setShowSelfProfile(false)}
+      />
     </View>
   );
 }

@@ -32,40 +32,32 @@ export default function RatingModal({ visible, partnerUserId, partnerName, onClo
     if (stars === 0) return;
     setLoading(true);
     try {
-      // Fetch current rating and total_trades
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('rating, total_trades')
-        .eq('id', partnerUserId)
-        .single();
-
-      if (profile) {
-        const prevRating    = profile.rating ?? 5;
-        const prevTrades    = profile.total_trades ?? 0;
-        const newTrades     = prevTrades + 1;
-        // Weighted average: (prevRating * prevTrades + newStars) / newTrades
-        const newRating     = Math.round(((prevRating * prevTrades + stars) / newTrades) * 100) / 100;
-
-        await supabase
-          .from('profiles')
-          .update({ rating: newRating, total_trades: newTrades })
-          .eq('id', partnerUserId);
+      // Insert review into reviews table
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase.from('reviews').insert({
+          reviewer_id: user.id,
+          reviewed_id: partnerUserId,
+          stars,
+          comment: review.trim() || null,
+        });
       }
 
-      // Optionally save raw review text to a notifications entry for the partner
-      if (review.trim()) {
-        await supabase.from('notifications').insert({
-          user_id:  partnerUserId,
-          type:     'offer_received',
-          title:    `⭐ ${stars}/5 — ביקורת חדשה`,
-          body:     review.trim(),
-          data:     { stars, reviewer: 'me' },
-        });
+      // Recompute partner's rating from average of all their reviews
+      const { data: allReviews } = await supabase
+        .from('reviews')
+        .select('stars')
+        .eq('reviewed_id', partnerUserId);
+      if (allReviews && allReviews.length > 0) {
+        const avg = allReviews.reduce((s, r) => s + r.stars, 0) / allReviews.length;
+        await supabase
+          .from('profiles')
+          .update({ rating: Math.round(avg * 100) / 100 })
+          .eq('id', partnerUserId);
       }
 
       setDone(true);
     } catch {
-      // Non-critical — close silently
       onClose();
     } finally {
       setLoading(false);

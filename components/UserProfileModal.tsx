@@ -5,6 +5,8 @@ import {
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
+  Image,
+  ScrollView,
 } from 'react-native';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -47,25 +49,42 @@ const starStyles = StyleSheet.create({
   empty: { color: '#D0D0D0' },
 });
 
+interface Review {
+  id: string;
+  stars: number;
+  comment: string | null;
+  created_at: string;
+  reviewer: { display_name: string; avatar_url: string | null } | null;
+}
+
 export default function UserProfileModal({ userId, onClose }: Props) {
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (!userId) { setProfile(null); setError(''); return; }
+    if (!userId) { setProfile(null); setReviews([]); setError(''); return; }
     setLoading(true);
     setError('');
-    supabase
-      .from('profiles')
-      .select('id, display_name, rating, total_trades, created_at, avatar_url')
-      .eq('id', userId)
-      .single()
-      .then(({ data, error: err }) => {
-        if (err || !data) setError('Could not load profile');
-        else setProfile(data as Profile);
-        setLoading(false);
-      });
+    Promise.all([
+      supabase
+        .from('profiles')
+        .select('id, display_name, rating, total_trades, created_at, avatar_url')
+        .eq('id', userId)
+        .single(),
+      supabase
+        .from('reviews')
+        .select('id, stars, comment, created_at, reviewer:profiles!reviews_reviewer_id_fkey(display_name, avatar_url)')
+        .eq('reviewed_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(10),
+    ]).then(([profileRes, reviewsRes]) => {
+      if (profileRes.error || !profileRes.data) setError('Could not load profile');
+      else setProfile(profileRes.data as Profile);
+      setReviews((reviewsRes.data ?? []) as unknown as Review[]);
+      setLoading(false);
+    });
   }, [userId]);
 
   const initials = profile?.display_name
@@ -101,12 +120,16 @@ export default function UserProfileModal({ userId, onClose }: Props) {
           )}
 
           {profile && !loading && (
-            <>
+            <ScrollView showsVerticalScrollIndicator={false} style={{ width: '100%' }}>
               {/* Avatar */}
               <View style={styles.avatarWrap}>
-                <View style={styles.avatar}>
-                  <Text style={styles.avatarText}>{initials}</Text>
-                </View>
+                {profile.avatar_url ? (
+                  <Image source={{ uri: profile.avatar_url }} style={styles.avatarImage} />
+                ) : (
+                  <View style={styles.avatar}>
+                    <Text style={styles.avatarText}>{initials}</Text>
+                  </View>
+                )}
               </View>
 
               {/* Name */}
@@ -156,7 +179,39 @@ export default function UserProfileModal({ userId, onClose }: Props) {
                   </View>
                 )}
               </View>
-            </>
+
+              {/* Reviews */}
+              <View style={styles.reviewsSection}>
+                <Text style={styles.reviewsTitle}>
+                  Reviews ({reviews.length})
+                </Text>
+                {reviews.length === 0 ? (
+                  <Text style={styles.noReviews}>No reviews yet</Text>
+                ) : (
+                  reviews.map((r) => (
+                    <View key={r.id} style={styles.reviewCard}>
+                      <View style={styles.reviewHeader}>
+                        <Text style={styles.reviewName}>
+                          {r.reviewer?.display_name ?? 'Anonymous'}
+                        </Text>
+                        <View style={{ flexDirection: 'row' }}>
+                          {Array.from({ length: 5 }).map((_, i) => (
+                            <Text key={i} style={[
+                              styles.reviewStar,
+                              i < r.stars && styles.reviewStarOn,
+                            ]}>★</Text>
+                          ))}
+                        </View>
+                      </View>
+                      {r.comment && <Text style={styles.reviewComment}>{r.comment}</Text>}
+                      <Text style={styles.reviewDate}>
+                        {new Date(r.created_at).toLocaleDateString('en-GB')}
+                      </Text>
+                    </View>
+                  ))
+                )}
+              </View>
+            </ScrollView>
           )}
         </TouchableOpacity>
       </TouchableOpacity>
@@ -193,7 +248,7 @@ const styles = StyleSheet.create({
   errorWrap: { paddingVertical: spacing.lg },
   errorText: { color: colors.error, fontSize: fontSizes.sm },
 
-  avatarWrap: { marginBottom: spacing.md, marginTop: spacing.xs },
+  avatarWrap: { marginBottom: spacing.md, marginTop: spacing.xs, alignItems: 'center' },
   avatar: {
     width: 80,
     height: 80,
@@ -202,6 +257,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  avatarImage: { width: 80, height: 80, borderRadius: 40 },
   avatarText: { fontSize: 28, fontWeight: '800', color: colors.white },
 
   name: { fontSize: fontSizes.xl, fontWeight: '800', color: colors.text, marginBottom: spacing.sm },
@@ -237,4 +293,20 @@ const styles = StyleSheet.create({
   trustBadgeText: { fontSize: fontSizes.xs, color: colors.success, fontWeight: '700' },
   trustBadgeGold: { backgroundColor: '#FFF3CD', borderColor: '#F5A623' },
   trustBadgeGoldText: { color: '#B8860B' },
+
+  reviewsSection: { width: '100%', marginTop: spacing.lg, paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.border },
+  reviewsTitle: { fontSize: fontSizes.md, fontWeight: '800', color: colors.text, marginBottom: spacing.sm },
+  noReviews: { fontSize: fontSizes.sm, color: colors.textMuted, textAlign: 'center', paddingVertical: spacing.md },
+  reviewCard: {
+    backgroundColor: colors.bgLight,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  reviewHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.xs },
+  reviewName: { fontSize: fontSizes.sm, fontWeight: '700', color: colors.text },
+  reviewStar: { fontSize: 14, color: colors.gray200, marginLeft: 1 },
+  reviewStarOn: { color: '#F5A623' },
+  reviewComment: { fontSize: fontSizes.sm, color: colors.text, lineHeight: 18, marginBottom: 4 },
+  reviewDate: { fontSize: 10, color: colors.textMuted },
 });
