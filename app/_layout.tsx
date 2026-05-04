@@ -1,10 +1,13 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { View } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/lib/stores/authStore';
+import VouchiXSplashScreen from '@/components/SplashScreen';
 
 export default function RootLayout() {
   const { setSession, fetchProfile } = useAuthStore();
+  const [splashDone, setSplashDone] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -25,15 +28,18 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="index" />
-      <Stack.Screen name="(auth)" />
-      <Stack.Screen name="(tabs)" />
-      <Stack.Screen name="voucher/[id]" options={{ presentation: 'card' }} />
-      <Stack.Screen name="voucher/add" options={{ presentation: 'modal' }} />
-      <Stack.Screen name="offer/make" options={{ presentation: 'modal' }} />
-      <Stack.Screen name="offer/[id]" options={{ presentation: 'card' }} />
-      <Stack.Screen name="dispute/[transactionId]" options={{ presentation: 'modal' }} />
-    </Stack>
+    <View style={{ flex: 1 }}>
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="index" />
+        <Stack.Screen name="(auth)" />
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="voucher/[id]" options={{ presentation: 'card' }} />
+        <Stack.Screen name="voucher/add" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="offer/make" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="offer/[id]" options={{ presentation: 'card' }} />
+        <Stack.Screen name="dispute/[transactionId]" options={{ presentation: 'modal' }} />
+      </Stack>
+      {!splashDone && <VouchiXSplashScreen onFinish={() => setSplashDone(true)} />}
+    </View>
   );
 }

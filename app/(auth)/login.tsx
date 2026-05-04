@@ -37,6 +37,22 @@ export default function LoginScreen() {
     }
   }
 
+  async function handleSocial(provider: 'google' | 'apple' | 'facebook') {
+    setError('');
+    setLoading(true);
+    try {
+      const redirectTo = typeof window !== 'undefined' ? window.location.origin : undefined;
+      const { error: authError } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: { redirectTo },
+      });
+      if (authError) throw authError;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Social login failed. Make sure the provider is enabled in Supabase Auth.');
+      setLoading(false);
+    }
+  }
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -87,6 +103,41 @@ export default function LoginScreen() {
             ) : (
               <Text style={styles.buttonText}>Sign In</Text>
             )}
+          </TouchableOpacity>
+
+          {/* OR divider */}
+          <View style={styles.dividerRow}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>OR</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          {/* Social buttons */}
+          <TouchableOpacity
+            style={[styles.socialBtn, styles.socialGoogle]}
+            onPress={() => handleSocial('google')}
+            disabled={loading}
+          >
+            <Text style={styles.socialEmoji}>🔵</Text>
+            <Text style={styles.socialText}>Continue with Google</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.socialBtn, styles.socialApple]}
+            onPress={() => handleSocial('apple')}
+            disabled={loading}
+          >
+            <Text style={styles.socialEmoji}>🍎</Text>
+            <Text style={[styles.socialText, { color: colors.white }]}>Continue with Apple</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.socialBtn, styles.socialFacebook]}
+            onPress={() => handleSocial('facebook')}
+            disabled={loading}
+          >
+            <Text style={styles.socialEmoji}>📘</Text>
+            <Text style={[styles.socialText, { color: colors.white }]}>Continue with Facebook</Text>
           </TouchableOpacity>
 
           <View style={styles.footer}>
@@ -195,4 +246,31 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.sm,
     fontWeight: '600',
   },
+
+  // Social login
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: spacing.lg,
+    gap: spacing.sm,
+  },
+  dividerLine: { flex: 1, height: 1, backgroundColor: colors.border },
+  dividerText: { color: colors.textMuted, fontSize: fontSizes.xs, fontWeight: '700' },
+
+  socialBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  socialGoogle: { backgroundColor: colors.white },
+  socialApple: { backgroundColor: '#000', borderColor: '#000' },
+  socialFacebook: { backgroundColor: '#1877F2', borderColor: '#1877F2' },
+  socialEmoji: { fontSize: 18 },
+  socialText: { fontSize: fontSizes.md, fontWeight: '700', color: colors.text },
 });
