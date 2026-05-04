@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   Image,
   ScrollView,
+  Pressable,
 } from 'react-native';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -99,10 +100,15 @@ export default function UserProfileModal({ userId, onClose }: Props) {
 
   return (
     <Modal visible={!!userId} transparent animationType="fade" onRequestClose={onClose}>
-      <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={onClose}>
-        <TouchableOpacity style={styles.card} activeOpacity={1} onPress={() => {}}>
+      <View style={styles.overlay}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <View style={styles.card}>
           {/* Close */}
-          <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
+          <TouchableOpacity
+            style={styles.closeBtn}
+            onPress={onClose}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
             <Text style={styles.closeBtnText}>✕</Text>
           </TouchableOpacity>
 
@@ -213,8 +219,8 @@ export default function UserProfileModal({ userId, onClose }: Props) {
               </View>
             </ScrollView>
           )}
-        </TouchableOpacity>
-      </TouchableOpacity>
+        </View>
+      </View>
     </Modal>
   );
 }
@@ -237,11 +243,13 @@ const styles = StyleSheet.create({
   },
   closeBtn: {
     position: 'absolute',
-    top: spacing.md,
-    right: spacing.md,
-    padding: spacing.xs,
+    top: spacing.sm,
+    right: spacing.sm,
+    padding: spacing.sm,
+    zIndex: 10,
+    elevation: 10,
   },
-  closeBtnText: { fontSize: fontSizes.lg, color: colors.textMuted },
+  closeBtnText: { fontSize: fontSizes.xl, color: colors.textMuted, fontWeight: '700' },
 
   loadingWrap: { paddingVertical: spacing.xl, alignItems: 'center', gap: spacing.sm },
   loadingText: { color: colors.textMuted, fontSize: fontSizes.sm },
