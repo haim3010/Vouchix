@@ -68,24 +68,44 @@ export default function UserProfileModal({ userId, onClose }: Props) {
     if (!userId) { setProfile(null); setReviews([]); setError(''); return; }
     setLoading(true);
     setError('');
-    Promise.all([
-      supabase
+    (async () => {
+      // Profile
+      const { data: profileData, error: pErr } = await supabase
         .from('profiles')
         .select('id, display_name, rating, total_trades, created_at, avatar_url')
         .eq('id', userId)
-        .single(),
-      supabase
+        .single();
+      if (pErr || !profileData) setError('Could not load profile');
+      else setProfile(profileData as Profile);
+
+      // Reviews (no FK embed — fetch reviewers separately for robustness)
+      const { data: reviewRows, error: rErr } = await supabase
         .from('reviews')
-        .select('id, stars, comment, created_at, reviewer:profiles!reviews_reviewer_id_fkey(display_name, avatar_url)')
+        .select('id, stars, comment, created_at, reviewer_id')
         .eq('reviewed_id', userId)
         .order('created_at', { ascending: false })
-        .limit(10),
-    ]).then(([profileRes, reviewsRes]) => {
-      if (profileRes.error || !profileRes.data) setError('Could not load profile');
-      else setProfile(profileRes.data as Profile);
-      setReviews((reviewsRes.data ?? []) as unknown as Review[]);
+        .limit(10);
+      console.log('[UserProfileModal] reviews query:', { userId, reviewRows, rErr });
+
+      if (reviewRows && reviewRows.length > 0) {
+        const reviewerIds = [...new Set(reviewRows.map((r) => r.reviewer_id).filter(Boolean))];
+        const { data: reviewers } = await supabase
+          .from('profiles')
+          .select('id, display_name, avatar_url')
+          .in('id', reviewerIds);
+        const byId = new Map((reviewers ?? []).map((r) => [r.id, r]));
+        setReviews(reviewRows.map((r) => ({
+          id: r.id,
+          stars: r.stars,
+          comment: r.comment,
+          created_at: r.created_at,
+          reviewer: byId.get(r.reviewer_id) ?? null,
+        })) as Review[]);
+      } else {
+        setReviews([]);
+      }
       setLoading(false);
-    });
+    })();
   }, [userId]);
 
   const initials = profile?.display_name
