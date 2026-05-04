@@ -83,6 +83,20 @@ export default function MessagesScreen() {
     return unsub;
   }, [user?.id]);
 
+  // Watch for any conversation flipping to "completed" — open the rating modal once
+  // (handles the seller side, since the buyer presses Pay Now and gets it directly)
+  const ratedOffersRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!user?.id) return;
+    const justCompleted = conversations.find(
+      (c) => c.offer_status === 'completed' && !ratedOffersRef.current.has(c.offer_id)
+    );
+    if (justCompleted && !ratingTarget) {
+      ratedOffersRef.current.add(justCompleted.offer_id);
+      setRatingTarget({ userId: justCompleted.other_user_id, name: justCompleted.other_user_name });
+    }
+  }, [conversations, user?.id, ratingTarget]);
+
   // Subscribe to real-time messages when a conversation is open
   useEffect(() => {
     if (currentConversation) {
