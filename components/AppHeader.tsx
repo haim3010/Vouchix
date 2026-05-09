@@ -1,15 +1,16 @@
-import { View, Text, StyleSheet, Image } from 'react-native';
+import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
 import { colors, spacing, fontSizes } from '@/lib/constants/theme';
+import { useLanguageStore } from '@/lib/i18n';
 
-// To use your real logo: save it to assets/logo.png and uncomment the import below.
-// const logoSource = require('@/assets/logo.png');
-const logoSource: number | null = null;
+const logoSource = require('@/assets/logo.png');
 
 interface Props {
   subtitle?: string;
 }
 
 export default function AppHeader({ subtitle }: Props) {
+  const { language, setLanguage } = useLanguageStore();
+
   return (
     <View style={styles.container}>
       <View style={styles.row}>
@@ -26,6 +27,23 @@ export default function AppHeader({ subtitle }: Props) {
         <Text style={styles.name}>
           Vouchi<Text style={styles.nameAccent}>X</Text>
         </Text>
+
+        <View style={styles.spacer} />
+
+        <View style={styles.langSwitcher}>
+          <TouchableOpacity
+            style={[styles.flagBtn, language === 'he' && styles.flagBtnActive]}
+            onPress={() => setLanguage('he')}
+          >
+            <Text style={styles.flagEmoji}>🇮🇱</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.flagBtn, language === 'en' && styles.flagBtnActive]}
+            onPress={() => setLanguage('en')}
+          >
+            <Text style={styles.flagEmoji}>🇺🇸</Text>
+          </TouchableOpacity>
+        </View>
       </View>
       {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
     </View>
@@ -88,5 +106,28 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.xs,
     color: colors.gray400,
     marginTop: 2,
+  },
+  spacer: {
+    flex: 1,
+  },
+  langSwitcher: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  flagBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'transparent',
+  },
+  flagBtnActive: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.5)',
+  },
+  flagEmoji: {
+    fontSize: 20,
   },
 });
