@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Image, TouchableOpacity, Platform } from 'react-native';
 import { colors, spacing, fontSizes } from '@/lib/constants/theme';
 import { useLanguageStore } from '@/lib/i18n';
 
@@ -35,13 +35,19 @@ export default function AppHeader({ subtitle }: Props) {
             style={[styles.flagBtn, language === 'he' && styles.flagBtnActive]}
             onPress={() => setLanguage('he')}
           >
-            <Text style={styles.flagEmoji}>🇮🇱</Text>
+            <Image
+              source={{ uri: 'https://flagcdn.com/w40/il.png' }}
+              style={styles.flagImg}
+            />
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.flagBtn, language === 'en' && styles.flagBtnActive]}
             onPress={() => setLanguage('en')}
           >
-            <Text style={styles.flagEmoji}>🇺🇸</Text>
+            <Image
+              source={{ uri: 'https://flagcdn.com/w40/us.png' }}
+              style={styles.flagImg}
+            />
           </TouchableOpacity>
         </View>
       </View>
@@ -127,7 +133,9 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: 'rgba(255,255,255,0.5)',
   },
-  flagEmoji: {
-    fontSize: 20,
+  flagImg: {
+    width: 28,
+    height: 20,
+    borderRadius: 3,
   },
 });
