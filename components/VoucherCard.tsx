@@ -26,7 +26,7 @@ export default function VoucherCard({ voucher, onDelete }: Props) {
   const urgencyColor =
     urgency === 'critical' ? colors.error :
     urgency === 'warning' ? colors.warning :
-    colors.success;
+    colors.accent;
 
   const days = daysUntilExpiry(voucher.expires_at);
   const expiryText =
@@ -46,26 +46,26 @@ export default function VoucherCard({ voucher, onDelete }: Props) {
   return (
     <>
       <TouchableOpacity
-        style={[styles.card, { borderLeftColor: brand.color }]}
+        style={styles.card}
         onPress={() => router.push(`/voucher/${voucher.id}`)}
-        activeOpacity={0.85}
+        activeOpacity={0.88}
       >
-        <View style={styles.cardHeader}>
-          <View style={styles.brandRow}>
-            <View style={[styles.brandBadge, { backgroundColor: brand.color + '15' }]}>
-              <BrandLogo domain={brand.domain} name={voucher.brand} color={brand.color} size={22} />
-              <Text style={[styles.brandName, { color: brand.color }]}>{voucher.brand}</Text>
-            </View>
-            {categoryLabel && (
-              <View style={styles.categoryBadge}>
-                <Text style={styles.categoryText}>{categoryLabel}</Text>
-              </View>
-            )}
+        {/* Navy header strip with brand + delete */}
+        <View style={styles.header}>
+          <View style={[styles.brandBadge, { backgroundColor: brand.color + '25' }]}>
+            <BrandLogo domain={brand.domain} name={voucher.brand} color={brand.color} size={20} />
+            <Text style={[styles.brandName, { color: brand.color }]}>{voucher.brand}</Text>
           </View>
-          <View style={styles.cardHeaderRight}>
+
+          <View style={styles.headerRight}>
             {voucher.is_listed && (
               <View style={styles.listedBadge}>
                 <Text style={styles.listedText}>{t('listedBadge')}</Text>
+              </View>
+            )}
+            {categoryLabel && (
+              <View style={styles.categoryBadge}>
+                <Text style={styles.categoryText}>{categoryLabel}</Text>
               </View>
             )}
             {onDelete && (
@@ -80,34 +80,38 @@ export default function VoucherCard({ voucher, onDelete }: Props) {
           </View>
         </View>
 
-      <View style={styles.values}>
-        <View>
-          <Text style={styles.valueLabel}>{t('remaining')}</Text>
-          <Text style={styles.valueAmount}>{formatCurrency(voucher.remaining_value, voucher.currency)}</Text>
-        </View>
-        <View style={styles.valueDivider} />
-        <View style={styles.originalValue}>
-          <Text style={styles.valueLabel}>{t('original')}</Text>
-          <Text style={styles.originalAmount}>{formatCurrency(voucher.original_value, voucher.currency)}</Text>
-        </View>
-      </View>
-
-      {usedPercent > 0 && (
-        <View style={styles.progressContainer}>
-          <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, { width: `${usedPercent}%`, backgroundColor: brand.color }]} />
+        {/* Value section */}
+        <View style={styles.valueSection}>
+          <View>
+            <Text style={styles.valueLabel}>{t('remaining')}</Text>
+            <Text style={styles.valueAmount}>{formatCurrency(voucher.remaining_value, voucher.currency)}</Text>
           </View>
-          <Text style={styles.progressLabel}>{usedPercent}{t('percentUsed')}</Text>
-        </View>
-      )}
-
-        <View style={styles.cardFooter}>
-          {voucher.voucher_code ? (
-            <Text style={styles.code} numberOfLines={1}>{t('codePrefix')} {voucher.voucher_code}</Text>
-          ) : (
-            <Text style={styles.code}>{t('tapToView')}</Text>
+          {voucher.original_value !== voucher.remaining_value && (
+            <View style={styles.originalBlock}>
+              <Text style={styles.originalLabel}>{t('original')}</Text>
+              <Text style={styles.originalAmount}>{formatCurrency(voucher.original_value, voucher.currency)}</Text>
+            </View>
           )}
-          <Text style={[styles.expiry, { color: urgencyColor }]}>{expiryText}</Text>
+        </View>
+
+        {/* Progress bar */}
+        {usedPercent > 0 && (
+          <View style={styles.progressRow}>
+            <View style={styles.progressTrack}>
+              <View style={[styles.progressFill, { width: `${usedPercent}%` }]} />
+            </View>
+            <Text style={styles.progressLabel}>{usedPercent}{t('percentUsed')}</Text>
+          </View>
+        )}
+
+        {/* Footer */}
+        <View style={styles.footer}>
+          <Text style={styles.codeText} numberOfLines={1}>
+            {voucher.voucher_code ? `${t('codePrefix')} ${voucher.voucher_code}` : t('tapToView')}
+          </Text>
+          <View style={[styles.expiryBadge, { backgroundColor: urgencyColor + '18' }]}>
+            <Text style={[styles.expiryText, { color: urgencyColor }]}>{expiryText}</Text>
+          </View>
         </View>
       </TouchableOpacity>
 
@@ -136,60 +140,106 @@ export default function VoucherCard({ voucher, onDelete }: Props) {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: colors.cardBg,
+    backgroundColor: colors.white,
     borderRadius: radius.lg,
-    padding: spacing.md,
     marginHorizontal: spacing.md,
     marginVertical: spacing.xs,
-    borderLeftWidth: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
+    overflow: 'hidden',
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: colors.gray200,
   },
-  cardHeader: {
+  header: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.sm,
-  },
-  brandRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    flex: 1,
-    flexWrap: 'wrap',
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
   },
   brandBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
+    paddingVertical: 4,
     borderRadius: radius.pill,
-    gap: 4,
+    gap: 6,
   },
-  brandEmoji: { fontSize: 16 }, // kept for reference, replaced by BrandLogo
   brandName: { fontSize: fontSizes.sm, fontWeight: '700' },
-  categoryBadge: {
-    backgroundColor: colors.gray100,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-    borderRadius: radius.pill,
-  },
-  categoryText: { fontSize: fontSizes.xs, color: colors.textMuted, fontWeight: '500' },
-  cardHeaderRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   listedBadge: {
-    backgroundColor: colors.accent + '20',
+    backgroundColor: colors.accent + '30',
     paddingHorizontal: spacing.sm,
     paddingVertical: 2,
     borderRadius: radius.pill,
   },
   listedText: { color: colors.accent, fontSize: fontSizes.xs, fontWeight: '700' },
+  categoryBadge: {
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: radius.pill,
+  },
+  categoryText: { fontSize: fontSizes.xs, color: colors.gray400, fontWeight: '500' },
   deleteBtn: { padding: 4 },
   deleteBtnText: { fontSize: 16 },
+
+  valueSection: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.sm,
+  },
+  valueLabel: { fontSize: fontSizes.xs, color: colors.textMuted, fontWeight: '500', marginBottom: 2 },
+  valueAmount: { fontSize: fontSizes.xxxl, fontWeight: '900', color: colors.gold, letterSpacing: -0.5 },
+  originalBlock: { alignItems: 'flex-end' },
+  originalLabel: { fontSize: fontSizes.xs, color: colors.textMuted, marginBottom: 2 },
+  originalAmount: { fontSize: fontSizes.md, fontWeight: '600', color: colors.textMuted, textDecorationLine: 'line-through' },
+
+  progressRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  progressTrack: {
+    flex: 1,
+    height: 5,
+    backgroundColor: colors.gray200,
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 3,
+    backgroundColor: colors.accent,
+  },
+  progressLabel: { fontSize: fontSizes.xs, color: colors.textMuted, width: 48, textAlign: 'right' },
+
+  footer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.md,
+  },
+  codeText: { fontSize: fontSizes.xs, color: colors.textMuted, flex: 1 },
+  expiryBadge: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: radius.pill,
+  },
+  expiryText: { fontSize: fontSizes.xs, fontWeight: '700' },
+
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center', padding: spacing.lg },
-  confirmBox: { backgroundColor: colors.cardBg, borderRadius: radius.lg, padding: spacing.lg, width: '100%', maxWidth: 320 },
+  confirmBox: { backgroundColor: colors.white, borderRadius: radius.lg, padding: spacing.lg, width: '100%', maxWidth: 320 },
   confirmTitle: { fontSize: fontSizes.lg, fontWeight: '800', color: colors.text, marginBottom: spacing.xs },
   confirmSub: { fontSize: fontSizes.sm, color: colors.textMuted, marginBottom: spacing.lg },
   confirmBtns: { flexDirection: 'row', gap: spacing.sm },
@@ -197,37 +247,4 @@ const styles = StyleSheet.create({
   cancelBtnText: { color: colors.textMuted, fontWeight: '600' },
   confirmDeleteBtn: { flex: 1, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.error, alignItems: 'center' },
   confirmDeleteText: { color: colors.white, fontWeight: '700' },
-  values: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: spacing.sm,
-  },
-  valueLabel: { fontSize: fontSizes.xs, color: colors.textMuted, fontWeight: '500' },
-  valueAmount: { fontSize: fontSizes.xxl, fontWeight: '800', color: colors.primary },
-  valueDivider: { width: 1, height: 36, backgroundColor: colors.border, marginHorizontal: spacing.md },
-  originalValue: {},
-  originalAmount: {
-    fontSize: fontSizes.lg,
-    fontWeight: '600',
-    color: colors.textMuted,
-    textDecorationLine: 'line-through',
-  },
-  progressContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    marginBottom: spacing.sm,
-  },
-  progressTrack: {
-    flex: 1,
-    height: 4,
-    backgroundColor: colors.gray200,
-    borderRadius: 2,
-    overflow: 'hidden',
-  },
-  progressFill: { height: '100%', borderRadius: 2 },
-  progressLabel: { fontSize: fontSizes.xs, color: colors.textMuted, width: 52, textAlign: 'right' },
-  cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  code: { fontSize: fontSizes.xs, color: colors.textMuted, flex: 1 },
-  expiry: { fontSize: fontSizes.xs, fontWeight: '600' },
 });

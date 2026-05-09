@@ -37,7 +37,11 @@ export const useLanguageStore = create<LanguageState>()(
   )
 );
 
-// Convenience hook — returns just the translator
+// Convenience hook — subscribes to language so components re-render on switch
 export function useT() {
-  return useLanguageStore((s) => s.t);
+  const language = useLanguageStore((s) => s.language);
+  return (key: TranslationKey): string =>
+    (translations[language] as Record<string, string>)[key] ??
+    (translations['en'] as Record<string, string>)[key] ??
+    key;
 }
